@@ -1,0 +1,1 @@
+Send the `m.fully_read` read marker when the going back to the room list, to mark the room as read.

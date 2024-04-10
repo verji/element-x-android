@@ -17,6 +17,7 @@
 package io.element.android.features.messages.impl.timeline
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -128,6 +129,12 @@ class TimelinePresenter @AssistedInject constructor(
             }
         }
 
+        DisposableEffect(Unit) {
+            onDispose {
+                appScope.sendReadReceiptFullyRead()
+            }
+        }
+
         LaunchedEffect(timelineItems.size) {
             computeNewItemState(timelineItems, prevMostRecentItemId, newItemState)
         }
@@ -220,6 +227,10 @@ class TimelinePresenter @AssistedInject constructor(
                 timeline.sendReadReceipt(eventId = eventId, receiptType = readReceiptType)
             }
         }
+    }
+
+    private fun CoroutineScope.sendReadReceiptFullyRead() = launch {
+        room.markAsRead(receiptType = ReceiptType.FULLY_READ)
     }
 
     private fun getLastEventIdBeforeOrAt(index: Int, items: ImmutableList<TimelineItem>): EventId? {
