@@ -57,7 +57,6 @@ class DefaultEncoder @Inject constructor(
 
     override fun release() {
         encoder?.release()
-            ?: Timber.w("Can't release encoder that is not initialized")
         encoder = null
     }
 }
