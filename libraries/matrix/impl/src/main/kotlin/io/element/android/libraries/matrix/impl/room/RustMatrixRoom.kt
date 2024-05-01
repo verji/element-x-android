@@ -74,6 +74,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.matrix.rustcomponents.sdk.RoomInfo
 import org.matrix.rustcomponents.sdk.RoomInfoListener
@@ -192,10 +193,10 @@ class RustMatrixRoom(
     }
 
     override val name: String?
-        get() = runCatching { roomListItem.name() }.getOrDefault(null)
+        get() = runCatching { runBlocking { roomListItem.name() } }.getOrDefault(null)
 
     override val displayName: String
-        get() = runCatching { innerRoom.displayName() }.getOrDefault("")
+        get() = runCatching { runBlocking { innerRoom.displayName() } }.getOrDefault("")
 
     override val topic: String?
         get() = runCatching { innerRoom.topic() }.getOrDefault(null)
@@ -204,7 +205,7 @@ class RustMatrixRoom(
         get() = runCatching { roomListItem.avatarUrl() ?: innerRoom.avatarUrl() }.getOrDefault(null)
 
     override val isEncrypted: Boolean
-        get() = runCatching { innerRoom.isEncrypted() }.getOrDefault(false)
+        get() = runCatching { runBlocking { innerRoom.isEncrypted() } }.getOrDefault(false)
 
     override val alias: RoomAlias?
         get() = runCatching { innerRoom.canonicalAlias()?.let(::RoomAlias) }.getOrDefault(null)
@@ -219,7 +220,7 @@ class RustMatrixRoom(
         get() = runCatching { innerRoom.isSpace() }.getOrDefault(false)
 
     override val isDirect: Boolean
-        get() = runCatching { innerRoom.isDirect() }.getOrDefault(false)
+        get() = runCatching { runBlocking { innerRoom.isDirect() } }.getOrDefault(false)
 
     override val joinedMemberCount: Long
         get() = runCatching { innerRoom.joinedMembersCount().toLong() }.getOrDefault(0)

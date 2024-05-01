@@ -103,7 +103,6 @@ import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.ClientDelegate
 import org.matrix.rustcomponents.sdk.FilterTimelineEventType
 import org.matrix.rustcomponents.sdk.IgnoredUsersListener
-import org.matrix.rustcomponents.sdk.NotificationProcessSetup
 import org.matrix.rustcomponents.sdk.PowerLevels
 import org.matrix.rustcomponents.sdk.Room
 import org.matrix.rustcomponents.sdk.RoomListItem
@@ -144,14 +143,13 @@ class RustMatrixClient(
         client = client,
         dispatchers = dispatchers,
     )
-    private val notificationProcessSetup = NotificationProcessSetup.SingleProcess(syncService)
-    private val notificationClient = client.notificationClient(notificationProcessSetup)
-        .use { builder ->
-            builder
-                .filterByPushRules()
-                .finish()
-        }
-    private val notificationService = RustNotificationService(sessionId, notificationClient, dispatchers, clock)
+    private val notificationService = RustNotificationService(
+        sessionId = sessionId,
+        syncService = syncService,
+        client = client,
+        dispatchers = dispatchers,
+        clock = clock,
+    )
     private val notificationSettingsService = RustNotificationSettingsService(client, dispatchers)
         .apply { start() }
     private val roomSyncSubscriber = RoomSyncSubscriber(innerRoomListService, dispatchers)
@@ -268,7 +266,7 @@ class RustMatrixClient(
             userId = sessionId,
             // TODO cache for displayName?
             displayName = null,
-            avatarUrl = client.cachedAvatarUrl(),
+            avatarUrl = null, // TODO client.cachedAvatarUrl(),
         )
     )
 
@@ -496,8 +494,7 @@ class RustMatrixClient(
         verificationService.destroy()
         syncService.destroy()
         innerRoomListService.destroy()
-        notificationClient.destroy()
-        notificationProcessSetup.destroy()
+        notificationService.destroy()
         encryptionService.destroy()
         client.destroy()
     }

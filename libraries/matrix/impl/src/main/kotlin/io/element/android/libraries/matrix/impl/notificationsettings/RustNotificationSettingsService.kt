@@ -25,6 +25,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.NotificationSettingsDelegate
@@ -35,7 +36,8 @@ class RustNotificationSettingsService(
     client: Client,
     private val dispatchers: CoroutineDispatchers,
 ) : NotificationSettingsService {
-    private val notificationSettings = client.getNotificationSettings()
+    // TODO init asynchronously?
+    private val notificationSettings = runBlocking { client.getNotificationSettings() }
     private val _notificationSettingsChangeFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val notificationSettingsChangeFlow: SharedFlow<Unit> = _notificationSettingsChangeFlow.asSharedFlow()
 

@@ -23,17 +23,26 @@ import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.notification.NotificationData
 import io.element.android.libraries.matrix.api.notification.NotificationService
 import io.element.android.services.toolbox.api.systemclock.SystemClock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.NotificationClient
+import org.matrix.rustcomponents.sdk.NotificationProcessSetup
+import org.matrix.rustcomponents.sdk.SyncService
 import org.matrix.rustcomponents.sdk.use
 
 class RustNotificationService(
     sessionId: SessionId,
-    private val notificationClient: NotificationClient,
+    syncService: SyncService,
+    private val client: Client,
     private val dispatchers: CoroutineDispatchers,
     clock: SystemClock,
 ) : NotificationService {
     private val notificationMapper: NotificationMapper = NotificationMapper(sessionId, clock)
+    private val notificationProcessSetup = NotificationProcessSetup.SingleProcess(syncService)
+    private var notificationClient: NotificationClient? = null
+    private val initMutex = Mutex()
 
     override suspend fun getNotification(
         userId: SessionId,
@@ -41,10 +50,29 @@ class RustNotificationService(
         eventId: EventId,
     ): Result<NotificationData?> = withContext(dispatchers.io) {
         runCatching {
-            val item = notificationClient.getNotification(roomId.value, eventId.value)
+            initNotificationClient()
+            val item = notificationClient?.getNotification(roomId.value, eventId.value)
             item?.use {
                 notificationMapper.map(eventId, roomId, it)
             }
         }
+    }
+
+    private suspend fun initNotificationClient() {
+        initMutex.withLock {
+            if (notificationClient == null) {
+                notificationClient = client.notificationClient(notificationProcessSetup)
+                    .use { builder ->
+                        builder
+                            .filterByPushRules()
+                            .finish()
+                    }
+            }
+        }
+    }
+
+    fun destroy() {
+        notificationClient?.destroy()
+        notificationProcessSetup.destroy()
     }
 }
