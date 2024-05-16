@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SubdirectoryArrowLeft
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.viewfolder.impl.model.Item
 import io.element.android.libraries.designsystem.components.button.BackButton
 import io.element.android.libraries.designsystem.components.list.ListItemContent
@@ -139,7 +139,9 @@ private fun ItemRow(
         }
         is Item.File -> {
             ListItem(
-                leadingContent = ListItemContent.Icon(IconSource.Vector(Icons.Outlined.Description)),
+                leadingContent = ListItemContent.Icon(
+                    IconSource.Vector(CompoundIcons.Files())
+                ),
                 headlineContent = {
                     Text(
                         text = item.name,

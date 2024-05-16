@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CatchingPokemon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
@@ -137,16 +135,17 @@ internal fun BigIconPreview() {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(10.dp)) {
             val provider = BigIconStylePreviewProvider()
             for (style in provider.values) {
-                BigIcon(style = style)
+                BigIcon(style = style ?: BigIcon.Style.Default(CompoundIcons.Favourite()))
             }
         }
     }
 }
 
-internal class BigIconStylePreviewProvider : PreviewParameterProvider<BigIcon.Style> {
-    override val values: Sequence<BigIcon.Style>
+internal class BigIconStylePreviewProvider : PreviewParameterProvider<BigIcon.Style?> {
+    override val values: Sequence<BigIcon.Style?>
         get() = sequenceOf(
-            BigIcon.Style.Default(Icons.Filled.CatchingPokemon),
+            // Cannot use CompoundIcons.Favourite() since it's a composable, so use null instead
+            null,
             BigIcon.Style.Alert,
             BigIcon.Style.AlertSolid,
             BigIcon.Style.Success,

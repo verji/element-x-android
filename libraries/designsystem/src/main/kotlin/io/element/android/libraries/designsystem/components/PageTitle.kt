@@ -108,13 +108,13 @@ fun PageTitle(
 
 @PreviewsDayNight
 @Composable
-internal fun PageTitleWithIconFullPreview(@PreviewParameter(BigIconStylePreviewProvider::class) style: BigIcon.Style) {
+internal fun PageTitleWithIconFullPreview(@PreviewParameter(BigIconStylePreviewProvider::class) style: BigIcon.Style?) {
     ElementPreview {
         PageTitle(
             modifier = Modifier.padding(top = 24.dp),
             title = AnnotatedString("Headline"),
             subtitle = AnnotatedString("Description goes here"),
-            iconStyle = style,
+            iconStyle = style ?: BigIcon.Style.Default(CompoundIcons.Favourite()),
             callToAction = {
                 TextButton(text = "Learn more", onClick = {})
             }

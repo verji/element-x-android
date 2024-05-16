@@ -18,8 +18,6 @@ package io.element.android.features.login.impl.screens.confirmaccountprovider
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -28,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.login.impl.R
 import io.element.android.features.login.impl.dialogs.SlidingSyncNotSupportedDialog
 import io.element.android.features.login.impl.error.ChangeServerError
@@ -66,7 +65,7 @@ fun ConfirmAccountProviderView(
         header = {
             IconTitleSubtitleMolecule(
                 modifier = Modifier.padding(top = 60.dp),
-                iconImageVector = Icons.Filled.AccountCircle,
+                iconImageVector = CompoundIcons.UserProfileSolid(),
                 title = stringResource(
                     id = if (state.isAccountCreation) {
                         R.string.screen_account_provider_signup_title
