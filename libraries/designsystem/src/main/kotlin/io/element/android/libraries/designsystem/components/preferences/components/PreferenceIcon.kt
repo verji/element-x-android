@@ -28,8 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.designsystem.atomic.atoms.RedIndicatorAtom
 import io.element.android.libraries.designsystem.preview.ElementThemedPreview
 import io.element.android.libraries.designsystem.preview.PreviewGroup
@@ -72,20 +72,27 @@ fun PreferenceIcon(
 
 @Preview(group = PreviewGroup.Preferences)
 @Composable
-internal fun PreferenceIconPreview(@PreviewParameter(ImageVectorProvider::class) content: ImageVector?) =
-    ElementThemedPreview {
-        PreferenceIcon(
-            icon = content,
-            showIconBadge = false,
-        )
-    }
+internal fun PreferenceIconPreview() = ElementThemedPreview {
+    PreferenceIcon(
+        icon = CompoundIcons.Threads(),
+        showIconBadge = false,
+    )
+}
 
 @Preview(group = PreviewGroup.Preferences)
 @Composable
-internal fun PreferenceIconWithBadgePreview(@PreviewParameter(ImageVectorProvider::class) content: ImageVector?) =
-    ElementThemedPreview {
-        PreferenceIcon(
-            icon = content,
-            showIconBadge = true,
-        )
-    }
+internal fun PreferenceIconWithBadgePreview() = ElementThemedPreview {
+    PreferenceIcon(
+        icon = CompoundIcons.Threads(),
+        showIconBadge = true,
+    )
+}
+
+@Preview(group = PreviewGroup.Preferences)
+@Composable
+internal fun PreferenceIconEmptyPreview() = ElementThemedPreview {
+    PreferenceIcon(
+        icon = null,
+        showIconBadge = false,
+    )
+}
