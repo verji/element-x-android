@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.test.timeline
@@ -19,8 +10,6 @@ package io.element.android.libraries.matrix.test.timeline
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.ProgressCallback
 import io.element.android.libraries.matrix.api.core.RoomId
-import io.element.android.libraries.matrix.api.core.TransactionId
-import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.media.AudioInfo
 import io.element.android.libraries.matrix.api.media.FileInfo
 import io.element.android.libraries.matrix.api.media.ImageInfo
@@ -32,6 +21,7 @@ import io.element.android.libraries.matrix.api.room.location.AssetType
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.Timeline
+import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
 import io.element.android.libraries.matrix.test.media.FakeMediaUploadHandler
 import io.element.android.tests.testutils.lambda.lambdaError
@@ -72,38 +62,52 @@ class FakeTimeline(
         intentionalMentions: List<IntentionalMention>,
     ): Result<Unit> = sendMessageLambda(body, htmlBody, intentionalMentions)
 
-    var redactEventLambda: (eventId: EventId?, transactionId: TransactionId?, reason: String?) -> Result<Boolean> = { _, _, _ ->
-        Result.success(true)
+    var redactEventLambda: (eventOrTransactionId: EventOrTransactionId, reason: String?) -> Result<Unit> = { _, _ ->
+        Result.success(Unit)
     }
 
     override suspend fun redactEvent(
-        eventId: EventId?,
-        transactionId: TransactionId?,
+        eventOrTransactionId: EventOrTransactionId,
         reason: String?
-    ): Result<Boolean> = redactEventLambda(eventId, transactionId, reason)
+    ): Result<Unit> = redactEventLambda(eventOrTransactionId, reason)
 
     var editMessageLambda: (
-        originalEventId: EventId?,
-        transactionId: TransactionId?,
+        eventOrTransactionId: EventOrTransactionId,
         body: String,
         htmlBody: String?,
         intentionalMentions: List<IntentionalMention>,
-    ) -> Result<Unit> = { _, _, _, _, _ ->
+    ) -> Result<Unit> = { _, _, _, _ ->
         Result.success(Unit)
     }
 
     override suspend fun editMessage(
-        originalEventId: EventId?,
-        transactionId: TransactionId?,
+        eventOrTransactionId: EventOrTransactionId,
         body: String,
         htmlBody: String?,
         intentionalMentions: List<IntentionalMention>,
     ): Result<Unit> = editMessageLambda(
-        originalEventId,
-        transactionId,
+        eventOrTransactionId,
         body,
         htmlBody,
         intentionalMentions
+    )
+
+    var editCaptionLambda: (
+        eventOrTransactionId: EventOrTransactionId,
+        caption: String?,
+        formattedCaption: String?,
+    ) -> Result<Unit> = { _, _, _ ->
+        lambdaError()
+    }
+
+    override suspend fun editCaption(
+        eventOrTransactionId: EventOrTransactionId,
+        caption: String?,
+        formattedCaption: String?,
+    ): Result<Unit> = editCaptionLambda(
+        eventOrTransactionId,
+        caption,
+        formattedCaption,
     )
 
     var replyMessageLambda: (
@@ -145,15 +149,15 @@ class FakeTimeline(
         file: File,
         thumbnailFile: File?,
         imageInfo: ImageInfo,
-        body: String?,
-        formattedBody: String?,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
     ): Result<MediaUploadHandler> = sendImageLambda(
         file,
         thumbnailFile,
         imageInfo,
-        body,
-        formattedBody,
+        caption,
+        formattedCaption,
         progressCallback
     )
 
@@ -172,61 +176,74 @@ class FakeTimeline(
         file: File,
         thumbnailFile: File?,
         videoInfo: VideoInfo,
-        body: String?,
-        formattedBody: String?,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
     ): Result<MediaUploadHandler> = sendVideoLambda(
         file,
         thumbnailFile,
         videoInfo,
-        body,
-        formattedBody,
+        caption,
+        formattedCaption,
         progressCallback
     )
 
     var sendAudioLambda: (
         file: File,
         audioInfo: AudioInfo,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
-    ) -> Result<MediaUploadHandler> = { _, _, _ ->
+    ) -> Result<MediaUploadHandler> = { _, _, _, _, _ ->
         Result.success(FakeMediaUploadHandler())
     }
 
     override suspend fun sendAudio(
         file: File,
         audioInfo: AudioInfo,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
     ): Result<MediaUploadHandler> = sendAudioLambda(
         file,
         audioInfo,
+        caption,
+        formattedCaption,
         progressCallback
     )
 
     var sendFileLambda: (
         file: File,
         fileInfo: FileInfo,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
-    ) -> Result<MediaUploadHandler> = { _, _, _ ->
+    ) -> Result<MediaUploadHandler> = { _, _, _, _, _ ->
         Result.success(FakeMediaUploadHandler())
     }
 
     override suspend fun sendFile(
         file: File,
         fileInfo: FileInfo,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
     ): Result<MediaUploadHandler> = sendFileLambda(
         file,
         fileInfo,
+        caption,
+        formattedCaption,
         progressCallback
     )
 
-    var toggleReactionLambda: (emoji: String, uniqueId: UniqueId) -> Result<Unit> = { _, _ -> Result.success(Unit) }
-    override suspend fun toggleReaction(emoji: String, uniqueId: UniqueId): Result<Unit> = toggleReactionLambda(emoji, uniqueId)
+    var toggleReactionLambda: (emoji: String, eventOrTransactionId: EventOrTransactionId) -> Result<Unit> = { _, _ -> Result.success(Unit) }
+    override suspend fun toggleReaction(emoji: String, eventOrTransactionId: EventOrTransactionId): Result<Unit> = toggleReactionLambda(
+        emoji,
+        eventOrTransactionId
+    )
 
     var forwardEventLambda: (eventId: EventId, roomIds: List<RoomId>) -> Result<Unit> = { _, _ -> Result.success(Unit) }
     override suspend fun forwardEvent(eventId: EventId, roomIds: List<RoomId>): Result<Unit> = forwardEventLambda(eventId, roomIds)
-
-    override suspend fun cancelSend(transactionId: TransactionId): Result<Boolean> = redactEvent(null, transactionId, null)
 
     var sendLocationLambda: (
         body: String,

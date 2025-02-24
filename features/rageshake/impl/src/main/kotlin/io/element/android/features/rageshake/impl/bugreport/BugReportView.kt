@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2022 New Vector Ltd
+ * Copyright 2022-2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.rageshake.impl.bugreport
@@ -48,13 +39,12 @@ import io.element.android.libraries.designsystem.components.preferences.Preferen
 import io.element.android.libraries.designsystem.components.preferences.PreferenceRow
 import io.element.android.libraries.designsystem.components.preferences.PreferenceSwitch
 import io.element.android.libraries.designsystem.components.preferences.PreferenceText
+import io.element.android.libraries.designsystem.modifiers.onTabOrEnterKeyFocusNext
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.preview.debugPlaceholderBackground
 import io.element.android.libraries.designsystem.theme.components.Button
-import io.element.android.libraries.designsystem.theme.components.OutlinedTextField
-import io.element.android.libraries.designsystem.theme.components.Text
-import io.element.android.libraries.designsystem.theme.components.onTabOrEnterKeyFocusNext
+import io.element.android.libraries.designsystem.theme.components.TextField
 import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
@@ -79,17 +69,14 @@ fun BugReportView(
             )
             Spacer(modifier = Modifier.height(16.dp))
             PreferenceRow {
-                OutlinedTextField(
+                TextField(
                     value = descriptionFieldState,
-                    modifier = Modifier.fillMaxWidth()
-                        .onTabOrEnterKeyFocusNext(LocalFocusManager.current),
+                    modifier = Modifier
+                            .fillMaxWidth()
+                            .onTabOrEnterKeyFocusNext(LocalFocusManager.current),
                     enabled = isFormEnabled,
-                    label = {
-                        Text(text = stringResource(id = R.string.screen_bug_report_editor_placeholder))
-                    },
-                    supportingText = {
-                        Text(text = stringResource(id = R.string.screen_bug_report_editor_description))
-                    },
+                    placeholder = stringResource(id = R.string.screen_bug_report_editor_placeholder),
+                    supportingText = stringResource(id = R.string.screen_bug_report_editor_description),
                     onValueChange = {
                         descriptionFieldState = it
                         eventSink(BugReportEvents.SetDescription(it))
@@ -161,8 +148,8 @@ fun BugReportView(
                     enabled = state.submitEnabled,
                     showProgress = state.sending.isLoading(),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 24.dp, bottom = 16.dp)
+                            .fillMaxWidth()
+                            .padding(top = 24.dp, bottom = 16.dp)
                 )
             }
         }

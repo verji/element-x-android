@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.impl.room.join
@@ -28,7 +19,7 @@ import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SERVER_LIST
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.room.FakeMatrixRoom
-import io.element.android.libraries.matrix.test.room.aRoomSummaryFilled
+import io.element.android.libraries.matrix.test.room.aRoomSummary
 import io.element.android.services.analytics.test.FakeAnalyticsService
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
@@ -38,7 +29,7 @@ import org.junit.Test
 class DefaultJoinRoomTest {
     @Test
     fun `when using roomId and there is no server names, the classic join room API is used`() = runTest {
-        val roomSummary = aRoomSummaryFilled()
+        val roomSummary = aRoomSummary()
         val joinRoomLambda = lambdaRecorder { _: RoomId -> Result.success(roomSummary) }
         val joinRoomByIdOrAliasLambda = lambdaRecorder { _: RoomIdOrAlias, _: List<String> -> Result.success(roomSummary) }
         val roomResult = FakeMatrixRoom()
@@ -73,7 +64,7 @@ class DefaultJoinRoomTest {
 
     @Test
     fun `when using roomId and server names are available, joinRoomByIdOrAlias API is used`() = runTest {
-        val roomSummary = aRoomSummaryFilled()
+        val roomSummary = aRoomSummary()
         val joinRoomLambda = lambdaRecorder { _: RoomId -> Result.success(roomSummary) }
         val joinRoomByIdOrAliasLambda = lambdaRecorder { _: RoomIdOrAlias, _: List<String> -> Result.success(roomSummary) }
         val roomResult = FakeMatrixRoom()
@@ -109,7 +100,7 @@ class DefaultJoinRoomTest {
 
     @Test
     fun `when using roomAlias, joinRoomByIdOrAlias API is used`() = runTest {
-        val roomSummary = aRoomSummaryFilled()
+        val roomSummary = aRoomSummary()
         val joinRoomLambda = lambdaRecorder { _: RoomId -> Result.success(roomSummary) }
         val joinRoomByIdOrAliasLambda = lambdaRecorder { _: RoomIdOrAlias, _: List<String> -> Result.success(roomSummary) }
         val roomResult = FakeMatrixRoom()

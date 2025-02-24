@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.eventformatter.impl
@@ -41,7 +32,6 @@ import io.element.android.libraries.matrix.api.timeline.item.event.OtherState
 import io.element.android.libraries.matrix.api.timeline.item.event.RedactedContent
 import io.element.android.libraries.matrix.api.timeline.item.event.RoomMembershipContent
 import io.element.android.libraries.matrix.api.timeline.item.event.StateContent
-import io.element.android.libraries.matrix.api.timeline.item.event.StickerContent
 import io.element.android.libraries.matrix.api.timeline.item.event.StickerMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.TextMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
@@ -55,6 +45,7 @@ import io.element.android.libraries.matrix.test.permalink.FakePermalinkParser
 import io.element.android.libraries.matrix.test.timeline.aPollContent
 import io.element.android.libraries.matrix.test.timeline.aProfileChangeMessageContent
 import io.element.android.libraries.matrix.test.timeline.aProfileTimelineDetails
+import io.element.android.libraries.matrix.test.timeline.aStickerContent
 import io.element.android.libraries.matrix.test.timeline.anEventTimelineItem
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.services.toolbox.impl.strings.AndroidStringProvider
@@ -100,7 +91,7 @@ class DefaultPinnedMessagesBannerFormatterTest {
     fun `Sticker content`() {
         val body = "a sticker body"
         val info = ImageInfo(null, null, null, null, null, null, null)
-        val message = createRoomEvent(false, null, StickerContent(body, info, aMediaSource(url = "url")))
+        val message = createRoomEvent(false, null, aStickerContent(body, info, aMediaSource(url = "url")))
         val result = formatter.format(message)
         val expectedBody = "Sticker: a sticker body"
         assertThat(result.toString()).isEqualTo(expectedBody)
@@ -144,11 +135,11 @@ class DefaultPinnedMessagesBannerFormatterTest {
         val sharedContentMessagesTypes = arrayOf(
             TextMessageType(body, null),
             VideoMessageType(body, null, null, MediaSource("url"), null),
-            AudioMessageType(body, MediaSource("url"), null),
-            VoiceMessageType(body, MediaSource("url"), null, null),
+            AudioMessageType(body, null, null, MediaSource("url"), null),
+            VoiceMessageType(body, null, null, MediaSource("url"), null, null),
             ImageMessageType(body, null, null, MediaSource("url"), null),
-            StickerMessageType(body, MediaSource("url"), null),
-            FileMessageType(body, MediaSource("url"), null),
+            StickerMessageType(body, null, null, MediaSource("url"), null),
+            FileMessageType(body, null, null, MediaSource("url"), null),
             LocationMessageType(body, "geo:1,2", null),
             NoticeMessageType(body, null),
             EmoteMessageType(body, null),
@@ -168,11 +159,11 @@ class DefaultPinnedMessagesBannerFormatterTest {
             val expectedResult = when (type) {
                 is VideoMessageType,
                 is AudioMessageType,
-                is VoiceMessageType,
                 is ImageMessageType,
                 is StickerMessageType,
                 is FileMessageType,
                 is LocationMessageType -> AnnotatedString::class.java
+                is VoiceMessageType,
                 is EmoteMessageType,
                 is TextMessageType,
                 is NoticeMessageType,
@@ -185,7 +176,7 @@ class DefaultPinnedMessagesBannerFormatterTest {
             val expectedResult = when (type) {
                 is VideoMessageType -> "Video: Shared body"
                 is AudioMessageType -> "Audio: Shared body"
-                is VoiceMessageType -> "Voice message: Shared body"
+                is VoiceMessageType -> "Voice message"
                 is ImageMessageType -> "Image: Shared body"
                 is StickerMessageType -> "Sticker: Shared body"
                 is FileMessageType -> "File: Shared body"

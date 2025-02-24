@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomdetails.impl.edit
@@ -29,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.net.toUri
+import io.element.android.libraries.androidutils.file.TemporaryUriDeleter
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.architecture.runCatchingUpdatingState
@@ -54,6 +46,7 @@ class RoomDetailsEditPresenter @Inject constructor(
     private val room: MatrixRoom,
     private val mediaPickerProvider: PickerProvider,
     private val mediaPreProcessor: MediaPreProcessor,
+    private val temporaryUriDeleter: TemporaryUriDeleter,
     permissionsPresenterFactory: PermissionsPresenter.Factory,
 ) : Presenter<RoomDetailsEditState> {
     private val cameraPermissionPresenter = permissionsPresenterFactory.create(android.Manifest.permission.CAMERA)
@@ -68,6 +61,7 @@ class RoomDetailsEditPresenter @Inject constructor(
         var roomAvatarUriEdited by rememberSaveable { mutableStateOf<Uri?>(null) }
         LaunchedEffect(roomAvatarUri) {
             // Every time the roomAvatar change (from sync), we can set the new avatar.
+            temporaryUriDeleter.delete(roomAvatarUriEdited)
             roomAvatarUriEdited = roomAvatarUri
         }
 
@@ -107,10 +101,20 @@ class RoomDetailsEditPresenter @Inject constructor(
         }
 
         val cameraPhotoPicker = mediaPickerProvider.registerCameraPhotoPicker(
-            onResult = { uri -> if (uri != null) roomAvatarUriEdited = uri }
+            onResult = { uri ->
+                if (uri != null) {
+                    temporaryUriDeleter.delete(roomAvatarUriEdited)
+                    roomAvatarUriEdited = uri
+                }
+            }
         )
         val galleryImagePicker = mediaPickerProvider.registerGalleryImagePicker(
-            onResult = { uri -> if (uri != null) roomAvatarUriEdited = uri }
+            onResult = { uri ->
+                if (uri != null) {
+                    temporaryUriDeleter.delete(roomAvatarUriEdited)
+                    roomAvatarUriEdited = uri
+                }
+            }
         )
 
         LaunchedEffect(cameraPermissionState.permissionGranted) {
@@ -152,7 +156,10 @@ class RoomDetailsEditPresenter @Inject constructor(
                             pendingPermissionRequest = true
                             cameraPermissionState.eventSink(PermissionsEvents.RequestPermissions)
                         }
-                        AvatarAction.Remove -> roomAvatarUriEdited = null
+                        AvatarAction.Remove -> {
+                            temporaryUriDeleter.delete(roomAvatarUriEdited)
+                            roomAvatarUriEdited = null
+                        }
                     }
                 }
 
@@ -211,7 +218,12 @@ class RoomDetailsEditPresenter @Inject constructor(
     private suspend fun updateAvatar(avatarUri: Uri?): Result<Unit> {
         return runCatching {
             if (avatarUri != null) {
-                val preprocessed = mediaPreProcessor.process(avatarUri, MimeTypes.Jpeg, compressIfPossible = false).getOrThrow()
+                val preprocessed = mediaPreProcessor.process(
+                    uri = avatarUri,
+                    mimeType = MimeTypes.Jpeg,
+                    deleteOriginal = false,
+                    compressIfPossible = false,
+                ).getOrThrow()
                 room.updateAvatar(MimeTypes.Jpeg, preprocessed.file.readBytes()).getOrThrow()
             } else {
                 room.removeAvatar().getOrThrow()

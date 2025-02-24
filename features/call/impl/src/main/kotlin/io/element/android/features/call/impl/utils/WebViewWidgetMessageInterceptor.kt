@@ -1,32 +1,30 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.call.impl.utils
 
 import android.graphics.Bitmap
+import android.net.http.SslError
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import io.element.android.features.call.impl.BuildConfig
 import kotlinx.coroutines.flow.MutableSharedFlow
+import timber.log.Timber
 
 class WebViewWidgetMessageInterceptor(
     private val webView: WebView,
+    private val onError: (String?) -> Unit,
 ) : WidgetMessageInterceptor {
     companion object {
         // We call both the WebMessageListener and the JavascriptInterface objects in JS with this
@@ -43,6 +41,27 @@ class WebViewWidgetMessageInterceptor(
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
 
+                // Due to https://github.com/element-hq/element-x-android/issues/4097
+                // we need to supply a logging implementation that correctly includes
+                // objects in log lines.
+                view?.evaluateJavascript(
+                    """
+                        function logFn(consoleLogFn, ...args) {
+                            consoleLogFn(
+                                args.map(
+                                    a => typeof a === "string" ? a : JSON.stringify(a)
+                                ).join(' ')
+                            );
+                        };
+                        globalThis.console.debug = logFn.bind(null, console.debug);
+                        globalThis.console.log = logFn.bind(null, console.log);
+                        globalThis.console.info = logFn.bind(null, console.info);
+                        globalThis.console.warn = logFn.bind(null, console.warn);
+                        globalThis.console.error = logFn.bind(null, console.error);
+                    """.trimIndent(),
+                    null
+                )
+
                 // We inject this JS code when the page starts loading to attach a message listener to the window.
                 // This listener will receive both messages:
                 // - EC widget API -> Element X (message.data.api == "fromWidget")
@@ -54,15 +73,49 @@ class WebViewWidgetMessageInterceptor(
                             if (message.data.response && message.data.api == "toWidget"
                                 || !message.data.response && message.data.api == "fromWidget") {
                                 let json = JSON.stringify(event.data) 
-                                ${"console.log('message sent: ' + json);".takeIf { BuildConfig.DEBUG } }
+                                ${"console.log('message sent: ' + json);".takeIf { BuildConfig.DEBUG }}
                                 $LISTENER_NAME.postMessage(json);
                             } else {
-                                ${"console.log('message received (ignored): ' + JSON.stringify(event.data));".takeIf { BuildConfig.DEBUG } }
+                                ${"console.log('message received (ignored): ' + JSON.stringify(event.data));".takeIf { BuildConfig.DEBUG }}
                             }
                         });
                     """.trimIndent(),
                     null
                 )
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                // No network for instance, transmit the error
+                Timber.e("onReceivedError error: ${error?.errorCode} ${error?.description}")
+
+                // Only propagate the error if it happens while loading the current page
+                if (view?.url == request?.url.toString()) {
+                    onError(error?.description.toString())
+                }
+
+                super.onReceivedError(view, request, error)
+            }
+
+            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+                Timber.e("onReceivedHttpError error: ${errorResponse?.statusCode} ${errorResponse?.reasonPhrase}")
+
+                // Only propagate the error if it happens while loading the current page
+                if (view?.url == request?.url.toString()) {
+                    onError(errorResponse?.statusCode.toString())
+                }
+
+                super.onReceivedHttpError(view, request, errorResponse)
+            }
+
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                Timber.e("onReceivedSslError error: ${error?.primaryError}")
+
+                // Only propagate the error if it happens while loading the current page
+                if (view?.url == error?.url.toString()) {
+                    onError(error?.toString())
+                }
+
+                super.onReceivedSslError(view, handler, error)
             }
         }
 

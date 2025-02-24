@@ -8,7 +8,7 @@
 
 # Element X Android
 
-Element X Android is a [Matrix](https://matrix.org/) Android Client provided by [element.io](https://element.io/). This app is currently in a pre-alpha release stage with only basic functionalities.
+Element X Android is a [Matrix](https://matrix.org/) Android Client provided by [element.io](https://element.io/).
 
 The application is a total rewrite of [Element-Android](https://github.com/element-hq/element-android) using the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk) underneath and targeting devices running Android 7+. The UI layer is written using [Jetpack Compose](https://developer.android.com/jetpack/compose), and the navigation is managed using [Appyx](https://github.com/bumble-tech/appyx).
 
@@ -59,7 +59,7 @@ Element X Android supports many languages. You can help us to translate the app 
 
 Note that for now, we keep control on the French and German translations.
 
-Translations can be checked screen per screen using our tool Element X Android Gallery, available at https://element-hq.github.io/element-x-android/. Note that this page is updated every Tuesday. 
+Translations can be checked screen per screen using our tool Element X Android Gallery, available at https://element-hq.github.io/element-x-android/. Note that this page is updated every Tuesday.
 
 More instructions about translating the application can be found at [CONTRIBUTING.md](CONTRIBUTING.md#strings).
 
@@ -71,7 +71,7 @@ We're doing this as a way to share code between platforms and while we've seen p
 
 ## Status
 
-This project is in work in progress. The app does not cover yet all functionalities we expect. The list of supported features can be found in [this issue](https://github.com/element-hq/element-x-android/issues/911).
+This project is in an early rollout and migration phase.
 
 ## Contributing
 
@@ -83,8 +83,11 @@ You can also come chat with the community in the Matrix [room](https://matrix.to
 
 ## Build instructions
 
-Just clone the project and open it in Android Studio.
-Makes sure to select the `app` configuration when building (as we also have sample apps in the project).
+Just clone the project and open it in Android Studio. Make sure to select the
+`app` configuration when building (as we also have sample apps in the project).
+
+To build against a local copy of the Rust SDK, see the [Developer
+onboarding](docs/_developer_onboarding.md#build-the-sdk-locally) instructions.
 
 ## Support
 
@@ -94,10 +97,12 @@ If after your research you still have a question, ask at [#element-x-android:mat
 
 ## Copyright and License
 
-Copyright © New Vector Ltd
+Copyright (c) 2022 - 2025 New Vector Ltd
 
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this work except in compliance with the License. You may obtain a copy of the License in the [LICENSE](LICENSE) file, or at:
+This software is dual licensed by New Vector Ltd (Element). It can be used either:
 
-[http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+(1) for free under the terms of the GNU Affero General Public License (as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version); OR
 
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+(2) under the terms of a paid-for Element Commercial License agreement between you and Element (the terms of which may vary depending on what you and Element have agreed to).
+
+Unless required by applicable law or agreed to in writing, software distributed under the Licenses is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the Licenses for the specific language governing permissions and limitations under the Licenses.

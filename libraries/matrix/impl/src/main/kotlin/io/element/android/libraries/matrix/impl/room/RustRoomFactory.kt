@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.impl.room
@@ -19,27 +10,27 @@ package io.element.android.libraries.matrix.impl.room
 import androidx.collection.lruCache
 import io.element.android.appconfig.TimelineConfig
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.featureflag.api.FeatureFlagService
+import io.element.android.libraries.matrix.api.core.DeviceId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.notificationsettings.NotificationSettingsService
 import io.element.android.libraries.matrix.api.room.MatrixRoom
+import io.element.android.libraries.matrix.api.room.RoomMembershipObserver
+import io.element.android.libraries.matrix.api.room.RoomPreview
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.roomlist.awaitLoaded
 import io.element.android.libraries.matrix.impl.roomlist.fullRoomWithTimeline
 import io.element.android.libraries.matrix.impl.roomlist.roomOrNull
-import io.element.android.libraries.sessionstorage.api.SessionData
 import io.element.android.services.toolbox.api.systemclock.SystemClock
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.matrix.rustcomponents.sdk.FilterTimelineEventType
 import org.matrix.rustcomponents.sdk.Room
 import org.matrix.rustcomponents.sdk.RoomListException
 import org.matrix.rustcomponents.sdk.RoomListItem
-import org.matrix.rustcomponents.sdk.TimelineEventTypeFilter
 import timber.log.Timber
 import org.matrix.rustcomponents.sdk.RoomListService as InnerRoomListService
 
@@ -47,6 +38,7 @@ private const val CACHE_SIZE = 16
 
 class RustRoomFactory(
     private val sessionId: SessionId,
+    private val deviceId: DeviceId,
     private val notificationSettingsService: NotificationSettingsService,
     private val sessionCoroutineScope: CoroutineScope,
     private val dispatchers: CoroutineDispatchers,
@@ -55,10 +47,10 @@ class RustRoomFactory(
     private val roomListService: RoomListService,
     private val innerRoomListService: InnerRoomListService,
     private val roomSyncSubscriber: RoomSyncSubscriber,
-    private val isKeyBackupEnabled: suspend () -> Boolean,
-    private val getSessionData: suspend () -> SessionData,
+    private val timelineEventTypeFilterFactory: TimelineEventTypeFilterFactory,
+    private val featureFlagService: FeatureFlagService,
+    private val roomMembershipObserver: RoomMembershipObserver,
 ) {
-    @OptIn(ExperimentalCoroutinesApi::class)
     private val dispatcher = dispatchers.io.limitedParallelism(1)
     private val mutex = Mutex()
     private var isDestroyed: Boolean = false
@@ -82,11 +74,7 @@ class RustRoomFactory(
     private val eventFilters = TimelineConfig.excludedEvents
         .takeIf { it.isNotEmpty() }
         ?.let { listStateEventType ->
-            TimelineEventTypeFilter.exclude(
-                listStateEventType.map { stateEventType ->
-                    FilterTimelineEventType.State(stateEventType.map())
-                }
-            )
+            timelineEventTypeFilterFactory.create(listStateEventType)
         }
 
     suspend fun destroy() {
@@ -118,7 +106,7 @@ class RustRoomFactory(
             val liveTimeline = roomReferences.fullRoom.timeline()
             RustMatrixRoom(
                 sessionId = sessionId,
-                isKeyBackupEnabled = isKeyBackupEnabled(),
+                deviceId = deviceId,
                 roomListItem = roomReferences.roomListItem,
                 innerRoom = roomReferences.fullRoom,
                 innerTimeline = liveTimeline,
@@ -127,11 +115,39 @@ class RustRoomFactory(
                 coroutineDispatchers = dispatchers,
                 systemClock = systemClock,
                 roomContentForwarder = roomContentForwarder,
-                sessionData = getSessionData(),
                 roomSyncSubscriber = roomSyncSubscriber,
                 matrixRoomInfoMapper = matrixRoomInfoMapper,
+                featureFlagService = featureFlagService,
+                roomMembershipObserver = roomMembershipObserver,
             )
         }
+    }
+
+    suspend fun createRoomPreview(roomId: RoomId): RoomPreview? = withContext(dispatcher) {
+        if (isDestroyed) {
+            Timber.d("Room factory is destroyed, returning null for $roomId")
+            return@withContext null
+        }
+        val roomListItem = innerRoomListService.roomOrNull(roomId.value)
+        if (roomListItem == null) {
+            Timber.d("Room not found for $roomId")
+            return@withContext null
+        }
+        if (roomListItem.membership() !in RustRoomPreview.ALLOWED_MEMBERSHIPS) {
+            Timber.d("Room $roomId is not in allowed membership")
+            return@withContext null
+        }
+        val innerRoom = try {
+            roomListItem.previewRoom(via = emptyList())
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get room preview for $roomId")
+            return@withContext null
+        }
+        RustRoomPreview(
+            sessionId = sessionId,
+            inner = innerRoom,
+            roomMembershipObserver = roomMembershipObserver,
+        )
     }
 
     private suspend fun getRoomReferences(roomId: RoomId): RustRoomReferences? {

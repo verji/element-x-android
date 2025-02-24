@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.appnav.loggedin
@@ -25,17 +16,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import im.vector.app.features.analytics.plan.CryptoSessionStateChange
 import im.vector.app.features.analytics.plan.UserProperties
-import io.element.android.features.networkmonitor.api.NetworkMonitor
-import io.element.android.features.networkmonitor.api.NetworkStatus
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.core.log.logger.LoggerTag
+import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
+import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
+import io.element.android.libraries.matrix.api.sync.SyncService
+import io.element.android.libraries.matrix.api.sync.isOnline
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
 import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatus
 import io.element.android.libraries.push.api.PushService
@@ -52,11 +46,12 @@ private val pusherTag = LoggerTag("Pusher", LoggerTag.PushLoggerTag)
 
 class LoggedInPresenter @Inject constructor(
     private val matrixClient: MatrixClient,
-    private val networkMonitor: NetworkMonitor,
+    private val syncService: SyncService,
     private val pushService: PushService,
     private val sessionVerificationService: SessionVerificationService,
     private val analyticsService: AnalyticsService,
     private val encryptionService: EncryptionService,
+    private val buildMeta: BuildMeta,
 ) : Presenter<LoggedInState> {
     @Composable
     override fun present(): LoggedInState {
@@ -81,12 +76,13 @@ class LoggedInPresenter @Inject constructor(
                 .launchIn(this)
         }
         val syncIndicator by matrixClient.roomListService.syncIndicator.collectAsState()
-        val networkStatus by networkMonitor.connectivity.collectAsState()
+        val isOnline by syncService.isOnline().collectAsState()
         val showSyncSpinner by remember {
             derivedStateOf {
-                networkStatus == NetworkStatus.Online && syncIndicator == RoomListService.SyncIndicator.Show
+                isOnline && syncIndicator == RoomListService.SyncIndicator.Show
             }
         }
+        var forceNativeSlidingSyncMigration by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
             combine(
                 sessionVerificationService.sessionVerifiedStatus,
@@ -106,6 +102,13 @@ class LoggedInPresenter @Inject constructor(
                         }
                     }
                 }
+                LoggedInEvents.CheckSlidingSyncProxyAvailability -> coroutineScope.launch {
+                    forceNativeSlidingSyncMigration = matrixClient.needsForcedNativeSlidingSyncMigration().getOrDefault(false)
+                }
+                LoggedInEvents.LogoutAndMigrateToNativeSlidingSync -> coroutineScope.launch {
+                    // Force the logout since Native Sliding Sync is already enforced by the SDK
+                    matrixClient.logout(userInitiated = true, ignoreSdkError = true)
+                }
             }
         }
 
@@ -113,8 +116,16 @@ class LoggedInPresenter @Inject constructor(
             showSyncSpinner = showSyncSpinner,
             pusherRegistrationState = pusherRegistrationState.value,
             ignoreRegistrationError = ignoreRegistrationError,
+            forceNativeSlidingSyncMigration = forceNativeSlidingSyncMigration,
+            appName = buildMeta.applicationName,
             eventSink = ::handleEvent
         )
+    }
+
+    // Force the user to log out if they were using the proxy sliding sync as it's no longer supported by the SDK
+    private suspend fun MatrixClient.needsForcedNativeSlidingSyncMigration(): Result<Boolean> = runCatching {
+        val currentSlidingSyncVersion = currentSlidingSyncVersion().getOrThrow()
+        currentSlidingSyncVersion == SlidingSyncVersion.Proxy
     }
 
     private suspend fun ensurePusherIsRegistered(pusherRegistrationState: MutableState<AsyncData<Unit>>) {
@@ -134,12 +145,12 @@ class LoggedInPresenter @Inject constructor(
                     .also { Timber.tag(pusherTag.value).w("No distributors available") }
                     .also {
                         // In this case, consider the push provider is chosen.
-                        pushService.selectPushProvider(matrixClient, pushProvider)
+                        pushService.selectPushProvider(matrixClient.sessionId, pushProvider)
                     }
                     .also { pusherRegistrationState.value = AsyncData.Failure(PusherRegistrationFailure.NoDistributorsAvailable()) }
             pushService.registerWith(matrixClient, pushProvider, distributor)
         } else {
-            val currentPushDistributor = currentPushProvider.getCurrentDistributor(matrixClient)
+            val currentPushDistributor = currentPushProvider.getCurrentDistributor(matrixClient.sessionId)
             if (currentPushDistributor == null) {
                 Timber.tag(pusherTag.value).d("Register with the first available distributor")
                 val distributor = currentPushProvider.getDistributors().firstOrNull()

@@ -1,22 +1,12 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.designsystem.theme
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import io.element.android.compound.annotations.CoreColorToken
@@ -33,13 +23,13 @@ import kotlinx.collections.immutable.persistentMapOf
  * Room list.
  */
 @Composable
-fun MaterialTheme.roomListRoomName() = colorScheme.primary
+fun ElementTheme.roomListRoomName() = colors.textPrimary
 
 @Composable
-fun MaterialTheme.roomListRoomMessage() = colorScheme.secondary
+fun ElementTheme.roomListRoomMessage() = colors.textSecondary
 
 @Composable
-fun MaterialTheme.roomListRoomMessageDate() = colorScheme.secondary
+fun ElementTheme.roomListRoomMessageDate() = colors.textSecondary
 
 val SemanticColors.unreadIndicator
     get() = iconAccentTertiary
@@ -142,10 +132,6 @@ val SemanticColors.mentionPillBackground
     }
 
 @OptIn(CoreColorToken::class)
-val SemanticColors.bigIconDefaultBackgroundColor
-    get() = if (isLight) LightColorTokens.colorAlphaGray300 else DarkColorTokens.colorAlphaGray300
-
-@OptIn(CoreColorToken::class)
 val SemanticColors.bigCheckmarkBorderColor
     get() = if (isLight) LightColorTokens.colorGray400 else DarkColorTokens.colorGray400
 
@@ -194,9 +180,9 @@ internal fun ColorAliasesPreview() = ElementPreview {
         backgroundColor = Color.Black,
         foregroundColor = Color.White,
         colors = persistentMapOf(
-            "roomListRoomName" to MaterialTheme.roomListRoomName(),
-            "roomListRoomMessage" to MaterialTheme.roomListRoomMessage(),
-            "roomListRoomMessageDate" to MaterialTheme.roomListRoomMessageDate(),
+            "roomListRoomName" to ElementTheme.roomListRoomName(),
+            "roomListRoomMessage" to ElementTheme.roomListRoomMessage(),
+            "roomListRoomMessageDate" to ElementTheme.roomListRoomMessageDate(),
             "unreadIndicator" to ElementTheme.colors.unreadIndicator,
             "placeholderBackground" to ElementTheme.colors.placeholderBackground,
             "messageFromMeBackground" to ElementTheme.colors.messageFromMeBackground,
@@ -204,7 +190,6 @@ internal fun ColorAliasesPreview() = ElementPreview {
             "progressIndicatorTrackColor" to ElementTheme.colors.progressIndicatorTrackColor,
             "temporaryColorBgSpecial" to ElementTheme.colors.temporaryColorBgSpecial,
             "iconSuccessPrimaryBackground" to ElementTheme.colors.iconSuccessPrimaryBackground,
-            "bigIconBackgroundColor" to ElementTheme.colors.bigIconDefaultBackgroundColor,
             "bigCheckmarkBorderColor" to ElementTheme.colors.bigCheckmarkBorderColor,
             "highlightedMessageBackgroundColor" to ElementTheme.colors.highlightedMessageBackgroundColor,
         )

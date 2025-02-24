@@ -1,26 +1,19 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.call.impl.utils
 
 import android.annotation.SuppressLint
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationManagerCompat
 import com.squareup.anvil.annotations.ContributesBinding
 import io.element.android.appconfig.ElementCallConfig
 import io.element.android.features.call.api.CallType
+import io.element.android.features.call.api.CurrentCall
 import io.element.android.features.call.impl.notifications.CallNotificationData
 import io.element.android.features.call.impl.notifications.RingingCallNotificationCreator
 import io.element.android.libraries.di.AppScope
@@ -65,11 +58,6 @@ interface ActiveCallManager {
     fun registerIncomingCall(notificationData: CallNotificationData)
 
     /**
-     * Called when the incoming call timed out. It will remove the active call and remove any associated UI, adding a 'missed call' notification.
-     */
-    fun incomingCallTimedOut()
-
-    /**
      * Called when the active call has been hung up. It will remove any existing UI and the active call.
      * @param callType The type of call that the user hung up, either an external url one or a room one.
      */
@@ -91,6 +79,7 @@ class DefaultActiveCallManager @Inject constructor(
     private val ringingCallNotificationCreator: RingingCallNotificationCreator,
     private val notificationManagerCompat: NotificationManagerCompat,
     private val matrixClientProvider: MatrixClientProvider,
+    private val defaultCurrentCallService: DefaultCurrentCallService,
 ) : ActiveCallManager {
     private var timedOutCallJob: Job? = null
 
@@ -98,6 +87,7 @@ class DefaultActiveCallManager @Inject constructor(
 
     init {
         observeRingingCall()
+        observeCurrentCall()
     }
 
     override fun registerIncomingCall(notificationData: CallNotificationData) {
@@ -119,18 +109,24 @@ class DefaultActiveCallManager @Inject constructor(
 
             // Wait for the ringing call to time out
             delay(ElementCallConfig.RINGING_CALL_DURATION_SECONDS.seconds)
-            incomingCallTimedOut()
+            incomingCallTimedOut(displayMissedCallNotification = true)
         }
     }
 
-    override fun incomingCallTimedOut() {
+    /**
+     * Called when the incoming call timed out. It will remove the active call and remove any associated UI, adding a 'missed call' notification.
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    fun incomingCallTimedOut(displayMissedCallNotification: Boolean) {
         val previousActiveCall = activeCall.value ?: return
         val notificationData = (previousActiveCall.callState as? CallState.Ringing)?.notificationData ?: return
         activeCall.value = null
 
         cancelIncomingCallNotification()
 
-        displayMissedCallNotification(notificationData)
+        if (displayMissedCallNotification) {
+            displayMissedCallNotification(notificationData)
+        }
     }
 
     override fun hungUpCall(callType: CallType) {
@@ -164,7 +160,8 @@ class DefaultActiveCallManager @Inject constructor(
             senderDisplayName = notificationData.senderName ?: notificationData.senderId.value,
             roomAvatarUrl = notificationData.avatarUrl,
             notificationChannelId = notificationData.notificationChannelId,
-            timestamp = notificationData.timestamp
+            timestamp = notificationData.timestamp,
+            textContent = notificationData.textContent,
         ) ?: return
         runCatching {
             notificationManagerCompat.notify(
@@ -192,28 +189,57 @@ class DefaultActiveCallManager @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeRingingCall() {
-        // This will observe ringing calls and ensure they're terminated if the room call is cancelled
+        // This will observe ringing calls and ensure they're terminated if the room call is cancelled or if the user
+        // has joined the call from another session.
         activeCall
             .filterNotNull()
             .filter { it.callState is CallState.Ringing && it.callType is CallType.RoomCall }
             .flatMapLatest { activeCall ->
                 val callType = activeCall.callType as CallType.RoomCall
-                // Get a flow of updated `hasRoomCall` values for the room
+                // Get a flow of updated `hasRoomCall` and `activeRoomCallParticipants` values for the room
                 matrixClientProvider.getOrRestore(callType.sessionId).getOrNull()
                     ?.getRoom(callType.roomId)
                     ?.roomInfoFlow
-                    ?.map { it.hasRoomCall }
+                    ?.map {
+                        it.hasRoomCall to (callType.sessionId in it.activeRoomCallParticipants)
+                    }
                     ?: flowOf()
             }
             // We only want to check if the room active call status changes
             .distinctUntilChanged()
             // Skip the first one, we're not interested in it (if the check below passes, it had to be active anyway)
             .drop(1)
-            .onEach { roomHasActiveCall ->
+            .onEach { (roomHasActiveCall, userIsInTheCall) ->
                 if (!roomHasActiveCall) {
                     // The call was cancelled
                     timedOutCallJob?.cancel()
-                    incomingCallTimedOut()
+                    incomingCallTimedOut(displayMissedCallNotification = true)
+                } else if (userIsInTheCall) {
+                    // The user joined the call from another session
+                    timedOutCallJob?.cancel()
+                    incomingCallTimedOut(displayMissedCallNotification = false)
+                }
+            }
+            .launchIn(coroutineScope)
+    }
+
+    private fun observeCurrentCall() {
+        activeCall
+            .onEach { value ->
+                if (value == null) {
+                    defaultCurrentCallService.onCallEnded()
+                } else {
+                    when (value.callState) {
+                        is CallState.Ringing -> {
+                            // Nothing to do
+                        }
+                        is CallState.InCall -> {
+                            when (val callType = value.callType) {
+                                is CallType.ExternalUrl -> defaultCurrentCallService.onCallStarted(CurrentCall.ExternalUrl(callType.url))
+                                is CallType.RoomCall -> defaultCurrentCallService.onCallStarted(CurrentCall.RoomCall(callType.roomId))
+                            }
+                        }
+                    }
                 }
             }
             .launchIn(coroutineScope)

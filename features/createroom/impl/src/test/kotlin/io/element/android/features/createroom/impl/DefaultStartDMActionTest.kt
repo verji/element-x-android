@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.createroom.impl
@@ -19,13 +10,14 @@ package io.element.android.features.createroom.impl
 import androidx.compose.runtime.mutableStateOf
 import com.google.common.truth.Truth.assertThat
 import im.vector.app.features.analytics.plan.CreatedRoom
+import io.element.android.features.createroom.api.ConfirmingStartDmWithMatrixUser
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_THROWABLE
-import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.FakeMatrixClient
+import io.element.android.libraries.matrix.ui.components.aMatrixUser
 import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.analytics.test.FakeAnalyticsService
 import kotlinx.coroutines.test.runTest
@@ -37,10 +29,12 @@ class DefaultStartDMActionTest {
         val matrixClient = FakeMatrixClient().apply {
             givenFindDmResult(A_ROOM_ID)
         }
-        val action = createStartDMAction(matrixClient)
+        val analyticsService = FakeAnalyticsService()
+        val action = createStartDMAction(matrixClient, analyticsService)
         val state = mutableStateOf<AsyncAction<RoomId>>(AsyncAction.Uninitialized)
-        action.execute(A_USER_ID, state)
+        action.execute(aMatrixUser(), true, state)
         assertThat(state.value).isEqualTo(AsyncAction.Success(A_ROOM_ID))
+        assertThat(analyticsService.capturedEvents).isEmpty()
     }
 
     @Test
@@ -52,9 +46,24 @@ class DefaultStartDMActionTest {
         val analyticsService = FakeAnalyticsService()
         val action = createStartDMAction(matrixClient, analyticsService)
         val state = mutableStateOf<AsyncAction<RoomId>>(AsyncAction.Uninitialized)
-        action.execute(A_USER_ID, state)
+        action.execute(aMatrixUser(), true, state)
         assertThat(state.value).isEqualTo(AsyncAction.Success(A_ROOM_ID))
         assertThat(analyticsService.capturedEvents).containsExactly(CreatedRoom(isDM = true))
+    }
+
+    @Test
+    fun `when dm is not found, and createIfDmDoesNotExist is false, assert dm is not created and state is updated to confirmation state`() = runTest {
+        val matrixClient = FakeMatrixClient().apply {
+            givenFindDmResult(null)
+            givenCreateDmResult(Result.success(A_ROOM_ID))
+        }
+        val analyticsService = FakeAnalyticsService()
+        val action = createStartDMAction(matrixClient, analyticsService)
+        val state = mutableStateOf<AsyncAction<RoomId>>(AsyncAction.Uninitialized)
+        val matrixUser = aMatrixUser()
+        action.execute(matrixUser, false, state)
+        assertThat(state.value).isEqualTo(ConfirmingStartDmWithMatrixUser(matrixUser))
+        assertThat(analyticsService.capturedEvents).isEmpty()
     }
 
     @Test
@@ -63,10 +72,12 @@ class DefaultStartDMActionTest {
             givenFindDmResult(null)
             givenCreateDmResult(Result.failure(A_THROWABLE))
         }
-        val action = createStartDMAction(matrixClient)
+        val analyticsService = FakeAnalyticsService()
+        val action = createStartDMAction(matrixClient, analyticsService)
         val state = mutableStateOf<AsyncAction<RoomId>>(AsyncAction.Uninitialized)
-        action.execute(A_USER_ID, state)
+        action.execute(aMatrixUser(), true, state)
         assertThat(state.value).isEqualTo(AsyncAction.Failure(A_THROWABLE))
+        assertThat(analyticsService.capturedEvents).isEmpty()
     }
 
     private fun createStartDMAction(

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.lockscreen.impl.unlock
@@ -36,7 +27,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,7 +50,7 @@ import io.element.android.features.lockscreen.impl.pin.model.PinEntry
 import io.element.android.features.lockscreen.impl.unlock.keypad.PinKeypad
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.architecture.AsyncData
-import io.element.android.libraries.designsystem.atomic.atoms.RoundedIconAtom
+import io.element.android.libraries.designsystem.components.BigIcon
 import io.element.android.libraries.designsystem.components.ProgressDialog
 import io.element.android.libraries.designsystem.components.dialogs.ConfirmationDialog
 import io.element.android.libraries.designsystem.components.dialogs.ErrorDialog
@@ -105,7 +95,7 @@ fun PinUnlockView(
                     latestOnSuccessLogout(state.signOutAction.data)
                 }
             }
-            AsyncAction.Confirming,
+            is AsyncAction.Confirming,
             is AsyncAction.Failure,
             AsyncAction.Uninitialized -> Unit
         }
@@ -113,7 +103,7 @@ fun PinUnlockView(
         if (state.showBiometricUnlockError) {
             ErrorDialog(
                 content = state.biometricUnlockErrorMessage ?: "",
-                onDismiss = { state.eventSink(PinUnlockEvents.ClearBiometricError) }
+                onSubmit = { state.eventSink(PinUnlockEvents.ClearBiometricError) }
             )
         }
     }
@@ -215,7 +205,7 @@ private fun SignOutPrompt(
         ErrorDialog(
             title = stringResource(id = R.string.screen_app_lock_signout_alert_title),
             content = stringResource(id = R.string.screen_app_lock_signout_alert_message),
-            onDismiss = onSignOut,
+            onSubmit = onSignOut,
         )
     }
 }
@@ -308,7 +298,7 @@ private fun PinUnlockHeader(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (isInAppUnlock) {
-            RoundedIconAtom(imageVector = Icons.Filled.Lock)
+            BigIcon(style = BigIcon.Style.Default(Icons.Filled.Lock))
         } else {
             Icon(
                 modifier = Modifier
@@ -325,7 +315,7 @@ private fun PinUnlockHeader(
                 .fillMaxWidth(),
             textAlign = TextAlign.Center,
             style = ElementTheme.typography.fontHeadingMdBold,
-            color = MaterialTheme.colorScheme.primary,
+            color = ElementTheme.colors.textPrimary,
         )
         Spacer(Modifier.height(8.dp))
         val remainingAttempts = state.remainingAttempts.dataOrNull()
@@ -339,9 +329,9 @@ private fun PinUnlockHeader(
             ""
         }
         val subtitleColor = if (state.showWrongPinTitle) {
-            MaterialTheme.colorScheme.error
+            ElementTheme.colors.textCriticalPrimary
         } else {
-            MaterialTheme.colorScheme.secondary
+            ElementTheme.colors.textSecondary
         }
         Text(
             text = subtitle,

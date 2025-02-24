@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.call.impl.ui
@@ -35,6 +26,7 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -43,6 +35,7 @@ import androidx.core.content.IntentCompat
 import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import io.element.android.features.call.api.CallType
+import io.element.android.features.call.api.CallType.ExternalUrl
 import io.element.android.features.call.impl.DefaultElementCallEntryPoint
 import io.element.android.features.call.impl.di.CallBindings
 import io.element.android.features.call.impl.pip.PictureInPictureEvents
@@ -51,11 +44,16 @@ import io.element.android.features.call.impl.pip.PictureInPictureState
 import io.element.android.features.call.impl.pip.PipView
 import io.element.android.features.call.impl.services.CallForegroundService
 import io.element.android.features.call.impl.utils.CallIntentDataParser
+import io.element.android.features.enterprise.api.EnterpriseService
+import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.architecture.bindings
+import io.element.android.libraries.core.log.logger.LoggerTag
 import io.element.android.libraries.designsystem.theme.ElementThemeApp
 import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import timber.log.Timber
 import javax.inject.Inject
+
+private val loggerTag = LoggerTag("ElementCallActivity")
 
 class ElementCallActivity :
     AppCompatActivity(),
@@ -64,9 +62,10 @@ class ElementCallActivity :
     @Inject lateinit var callIntentDataParser: CallIntentDataParser
     @Inject lateinit var presenterFactory: CallScreenPresenter.Factory
     @Inject lateinit var appPreferencesStore: AppPreferencesStore
+    @Inject lateinit var enterpriseService: EnterpriseService
     @Inject lateinit var pictureInPicturePresenter: PictureInPicturePresenter
 
-    private lateinit var presenter: CallScreenPresenter
+    private lateinit var presenter: Presenter<CallScreenState>
 
     private lateinit var audioManager: AudioManager
 
@@ -96,6 +95,10 @@ class ElementCallActivity :
         )
 
         setCallType(intent)
+        // If presenter is not created at this point, it means we have no call to display, the Activity is finishing, so return early
+        if (!::presenter.isInitialized) {
+            return
+        }
 
         if (savedInstanceState == null) {
             updateUiMode(resources.configuration)
@@ -104,14 +107,22 @@ class ElementCallActivity :
         pictureInPicturePresenter.setPipView(this)
 
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        requestAudioFocus()
 
         setContent {
             val pipState = pictureInPicturePresenter.present()
             ListenToAndroidEvents(pipState)
-            ElementThemeApp(appPreferencesStore) {
+            ElementThemeApp(
+                appPreferencesStore = appPreferencesStore,
+                enterpriseService = enterpriseService,
+            ) {
                 val state = presenter.present()
                 eventSink = state.eventSink
+                LaunchedEffect(state.isCallActive, state.isInWidgetMode) {
+                    // Note when not in WidgetMode, isCallActive will never be true, so consider the call is active
+                    if (state.isCallActive || !state.isInWidgetMode) {
+                        setCallIsActive()
+                    }
+                }
                 CallScreenView(
                     state = state,
                     pipState = pipState,
@@ -124,23 +135,32 @@ class ElementCallActivity :
         }
     }
 
+    private fun setCallIsActive() {
+        requestAudioFocus()
+        CallForegroundService.start(this)
+    }
+
     @Composable
     private fun ListenToAndroidEvents(pipState: PictureInPictureState) {
         val pipEventSink by rememberUpdatedState(pipState.eventSink)
         DisposableEffect(Unit) {
-            val onUserLeaveHintListener = Runnable {
-                pipEventSink(PictureInPictureEvents.EnterPictureInPicture)
+            val listener = Runnable {
+                if (requestPermissionCallback != null) {
+                    Timber.tag(loggerTag.value).w("Ignoring onUserLeaveHint event because user is asked to grant permissions")
+                } else {
+                    pipEventSink(PictureInPictureEvents.EnterPictureInPicture)
+                }
             }
-            addOnUserLeaveHintListener(onUserLeaveHintListener)
+            addOnUserLeaveHintListener(listener)
             onDispose {
-                removeOnUserLeaveHintListener(onUserLeaveHintListener)
+                removeOnUserLeaveHintListener(listener)
             }
         }
         DisposableEffect(Unit) {
             val onPictureInPictureModeChangedListener = Consumer { _: PictureInPictureModeChangedInfo ->
                 pipEventSink(PictureInPictureEvents.OnPictureInPictureModeChanged(isInPictureInPictureMode))
                 if (!isInPictureInPictureMode && !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                    Timber.d("Exiting PiP mode: Hangup the call")
+                    Timber.tag(loggerTag.value).d("Exiting PiP mode: Hangup the call")
                     eventSink?.invoke(CallScreenEvents.Hangup)
                 }
             }
@@ -161,18 +181,6 @@ class ElementCallActivity :
         setCallType(intent)
     }
 
-    override fun onStart() {
-        super.onStart()
-        CallForegroundService.stop(this)
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (!isFinishing && !isChangingConfigurations) {
-            CallForegroundService.start(this)
-        }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         releaseAudioFocus()
@@ -191,23 +199,30 @@ class ElementCallActivity :
 
     private fun setCallType(intent: Intent?) {
         val callType = intent?.let {
-            IntentCompat.getParcelableExtra(it, DefaultElementCallEntryPoint.EXTRA_CALL_TYPE, CallType::class.java)
+            IntentCompat.getParcelableExtra(intent, DefaultElementCallEntryPoint.EXTRA_CALL_TYPE, CallType::class.java)
+                ?: intent.dataString?.let(::parseUrl)?.let(::ExternalUrl)
         }
-        val intentUrl = intent?.dataString?.let(::parseUrl)
-        when {
-            // Re-opened the activity but we have no url to load or a cached one, finish the activity
-            intent?.dataString == null && callType == null && webViewTarget.value == null -> finish()
-            callType != null -> {
+        val currentCallType = webViewTarget.value
+        if (currentCallType == null) {
+            if (callType == null) {
+                Timber.tag(loggerTag.value).d("Re-opened the activity but we have no url to load or a cached one, finish the activity")
+                finish()
+            } else {
+                Timber.tag(loggerTag.value).d("Set the call type and create the presenter")
                 webViewTarget.value = callType
                 presenter = presenterFactory.create(callType, this)
             }
-            intentUrl != null -> {
-                val fallbackInputs = CallType.ExternalUrl(intentUrl)
-                webViewTarget.value = fallbackInputs
-                presenter = presenterFactory.create(fallbackInputs, this)
+        } else {
+            if (callType == null) {
+                Timber.tag(loggerTag.value).d("Coming back from notification, do nothing")
+            } else if (callType != currentCallType) {
+                Timber.tag(loggerTag.value).d("User starts another call, restart the Activity")
+                setIntent(intent)
+                recreate()
+            } else {
+                // Starting the same call again, should not happen, the UI is preventing this. But maybe when using external links.
+                Timber.tag(loggerTag.value).d("Starting the same call again, do nothing")
             }
-            // Coming back from notification, do nothing
-            else -> return
         }
     }
 
@@ -230,15 +245,16 @@ class ElementCallActivity :
                 }
             }
             callback(permissionsToGrant.toTypedArray())
+            requestPermissionCallback = null
         }
     }
 
     @Suppress("DEPRECATION")
     private fun requestAudioFocus() {
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-            .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .build()
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(audioAttributes)
                 .build()
@@ -251,7 +267,6 @@ class ElementCallActivity :
                 AudioManager.STREAM_VOICE_CALL,
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE,
             )
-
             audioFocusChangeListener = listener
         }
     }
@@ -285,7 +300,11 @@ class ElementCallActivity :
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun enterPipMode(): Boolean {
-        return enterPictureInPictureMode(getPictureInPictureParams())
+        return if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            enterPictureInPictureMode(getPictureInPictureParams())
+        } else {
+            false
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)

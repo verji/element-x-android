@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.appnav
@@ -36,7 +27,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import im.vector.app.features.analytics.plan.JoinedRoom
 import io.element.android.anvilannotations.ContributesNode
-import io.element.android.appnav.di.MatrixClientsHolder
+import io.element.android.appnav.di.MatrixSessionCache
 import io.element.android.appnav.intent.IntentResolver
 import io.element.android.appnav.intent.ResolvedIntent
 import io.element.android.appnav.root.RootNavStateFlowFactory
@@ -71,7 +62,7 @@ class RootFlowNode @AssistedInject constructor(
     @Assisted plugins: List<Plugin>,
     private val authenticationService: MatrixAuthenticationService,
     private val navStateFlowFactory: RootNavStateFlowFactory,
-    private val matrixClientsHolder: MatrixClientsHolder,
+    private val matrixSessionCache: MatrixSessionCache,
     private val presenter: RootPresenter,
     private val bugReportEntryPoint: BugReportEntryPoint,
     private val viewFolderEntryPoint: ViewFolderEntryPoint,
@@ -87,14 +78,14 @@ class RootFlowNode @AssistedInject constructor(
     plugins = plugins
 ) {
     override fun onBuilt() {
-        matrixClientsHolder.restoreWithSavedState(buildContext.savedStateMap)
+        matrixSessionCache.restoreWithSavedState(buildContext.savedStateMap)
         super.onBuilt()
         observeNavState()
     }
 
     override fun onSaveInstanceState(state: MutableSavedStateMap) {
         super.onSaveInstanceState(state)
-        matrixClientsHolder.saveIntoSavedState(state)
+        matrixSessionCache.saveIntoSavedState(state)
         navStateFlowFactory.saveIntoSavedState(state)
     }
 
@@ -127,7 +118,7 @@ class RootFlowNode @AssistedInject constructor(
     }
 
     private fun switchToNotLoggedInFlow() {
-        matrixClientsHolder.removeAll()
+        matrixSessionCache.removeAll()
         backstack.safeRoot(NavTarget.NotLoggedInFlow)
     }
 
@@ -140,7 +131,7 @@ class RootFlowNode @AssistedInject constructor(
         onFailure: () -> Unit,
         onSuccess: (SessionId) -> Unit,
     ) {
-        matrixClientsHolder.getOrRestore(sessionId)
+        matrixSessionCache.getOrRestore(sessionId)
             .onSuccess {
                 Timber.v("Succeed to restore session $sessionId")
                 onSuccess(sessionId)
@@ -209,7 +200,7 @@ class RootFlowNode @AssistedInject constructor(
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return when (navTarget) {
             is NavTarget.LoggedInFlow -> {
-                val matrixClient = matrixClientsHolder.getOrNull(navTarget.sessionId) ?: return splashNode(buildContext).also {
+                val matrixClient = matrixSessionCache.getOrNull(navTarget.sessionId) ?: return splashNode(buildContext).also {
                     Timber.w("Couldn't find any session, go through SplashScreen")
                 }
                 val inputs = LoggedInAppScopeFlowNode.Inputs(matrixClient)
@@ -312,6 +303,7 @@ class RootFlowNode @AssistedInject constructor(
                             trigger = JoinedRoom.Trigger.MobilePermalink,
                             serverNames = permalinkData.viaParameters,
                             eventId = permalinkData.eventId,
+                            clearBackstack = true
                         )
                     }
                     is PermalinkData.UserLink -> {
@@ -327,7 +319,7 @@ class RootFlowNode @AssistedInject constructor(
             .apply {
                 when (deeplinkData) {
                     is DeeplinkData.Root -> Unit // The room list will always be shown, observing FtueState
-                    is DeeplinkData.Room -> attachRoom(deeplinkData.roomId.toRoomIdOrAlias())
+                    is DeeplinkData.Room -> attachRoom(deeplinkData.roomId.toRoomIdOrAlias(), clearBackstack = true)
                 }
             }
     }

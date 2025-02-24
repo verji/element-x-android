@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.api.roomdirectory
@@ -19,8 +10,22 @@ package io.element.android.libraries.matrix.api.roomdirectory
 import kotlinx.coroutines.flow.Flow
 
 interface RoomDirectoryList {
-    suspend fun filter(filter: String?, batchSize: Int): Result<Unit>
+    /**
+     * Starts a filtered search for the server.
+     * If the filter is not provided it will search for all the rooms. You can specify a batch_size to control the number of rooms to fetch per request.
+     * If the via_server is not provided it will search in the current homeserver by default.
+     * This method will clear the current search results and start a new one
+     */
+    suspend fun filter(filter: String?, batchSize: Int, viaServerName: String?): Result<Unit>
+
+    /**
+     * Load more rooms from the current search results.
+     */
     suspend fun loadMore(): Result<Unit>
+
+    /**
+     * The current search results as a state flow.
+     */
     val state: Flow<State>
 
     data class State(

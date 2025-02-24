@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.licenses.impl.list
@@ -38,6 +29,10 @@ class DependencyLicensesListPresenter @Inject constructor(
         var licenses by remember {
             mutableStateOf<AsyncData<ImmutableList<DependencyLicenseItem>>>(AsyncData.Loading())
         }
+        var filteredLicenses by remember {
+            mutableStateOf<AsyncData<ImmutableList<DependencyLicenseItem>>>(AsyncData.Loading())
+        }
+        var filter by remember { mutableStateOf("") }
         LaunchedEffect(Unit) {
             runCatching {
                 licenses = AsyncData.Success(licensesProvider.provides().toPersistentList())
@@ -45,6 +40,32 @@ class DependencyLicensesListPresenter @Inject constructor(
                 licenses = AsyncData.Failure(it)
             }
         }
-        return DependencyLicensesListState(licenses = licenses)
+        LaunchedEffect(filter, licenses.dataOrNull()) {
+            val data = licenses.dataOrNull()
+            val safeFilter = filter.trim()
+            if (data != null && safeFilter.isNotEmpty()) {
+                filteredLicenses = AsyncData.Success(data.filter {
+                    it.safeName.contains(safeFilter, ignoreCase = true) ||
+                        it.groupId.contains(safeFilter, ignoreCase = true) ||
+                        it.artifactId.contains(safeFilter, ignoreCase = true)
+                }.toPersistentList())
+            } else {
+                filteredLicenses = licenses
+            }
+        }
+
+        fun handleEvent(dependencyLicensesListEvent: DependencyLicensesListEvent) {
+            when (dependencyLicensesListEvent) {
+                is DependencyLicensesListEvent.SetFilter -> {
+                    filter = dependencyLicensesListEvent.filter
+                }
+            }
+        }
+
+        return DependencyLicensesListState(
+            licenses = filteredLicenses,
+            filter = filter,
+            eventSink = ::handleEvent,
+        )
     }
 }

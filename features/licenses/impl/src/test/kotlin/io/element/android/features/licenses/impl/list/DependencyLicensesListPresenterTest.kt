@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.licenses.impl.list
@@ -42,6 +33,7 @@ class DependencyLicensesListPresenterTest {
             val finalState = awaitItem()
             assertThat(finalState.licenses.isSuccess()).isTrue()
             assertThat(finalState.licenses.dataOrNull()).isEmpty()
+            assertThat(finalState.filter).isEqualTo("")
         }
     }
 
@@ -60,6 +52,40 @@ class DependencyLicensesListPresenterTest {
             assertThat(finalState.licenses.isSuccess()).isTrue()
             assertThat(finalState.licenses.dataOrNull()!!.size).isEqualTo(1)
             assertThat(finalState.licenses.dataOrNull()!!.get(0)).isEqualTo(anItem)
+        }
+    }
+
+    @Test
+    fun `present - initial state, one license, set filter`() = runTest {
+        val anItem = aDependencyLicenseItem()
+        val presenter = createPresenter {
+            listOf(anItem)
+        }
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            assertThat(initialState.licenses).isInstanceOf(AsyncData.Loading::class.java)
+            val loadedState = awaitItem()
+            assertThat(loadedState.licenses.isSuccess()).isTrue()
+            assertThat(loadedState.licenses.dataOrNull()!!.size).isEqualTo(1)
+            loadedState.eventSink(DependencyLicensesListEvent.SetFilter("dep"))
+            awaitItem().let { state ->
+                assertThat(state.licenses.dataOrNull()!!.size).isEqualTo(1)
+                assertThat(state.filter).isEqualTo("dep")
+            }
+            loadedState.eventSink(DependencyLicensesListEvent.SetFilter("bleh"))
+            skipItems(1)
+            awaitItem().let { state ->
+                assertThat(state.licenses.dataOrNull()!!.size).isEqualTo(0)
+                assertThat(state.filter).isEqualTo("bleh")
+            }
+            loadedState.eventSink(DependencyLicensesListEvent.SetFilter(""))
+            skipItems(1)
+            awaitItem().let { state ->
+                assertThat(state.licenses.dataOrNull()!!.size).isEqualTo(1)
+                assertThat(state.filter).isEqualTo("")
+            }
         }
     }
 

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.share.impl
@@ -31,6 +22,7 @@ import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.mediaupload.api.MediaPreProcessor
 import io.element.android.libraries.mediaupload.api.MediaSender
+import io.element.android.libraries.preferences.api.store.SessionPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -40,6 +32,7 @@ class SharePresenter @AssistedInject constructor(
     private val shareIntentHandler: ShareIntentHandler,
     private val matrixClient: MatrixClient,
     private val mediaPreProcessor: MediaPreProcessor,
+    private val sessionPreferencesStore: SessionPreferencesStore,
 ) : Presenter<ShareState> {
     @AssistedFactory
     interface Factory {
@@ -80,13 +73,16 @@ class SharePresenter @AssistedInject constructor(
                         roomIds
                             .map { roomId ->
                                 val room = matrixClient.getRoom(roomId) ?: return@map false
-                                val mediaSender = MediaSender(preProcessor = mediaPreProcessor, room = room)
+                                val mediaSender = MediaSender(
+                                    preProcessor = mediaPreProcessor,
+                                    room = room,
+                                    sessionPreferencesStore = sessionPreferencesStore,
+                                )
                                 filesToShare
                                     .map { fileToShare ->
                                         mediaSender.sendMedia(
                                             uri = fileToShare.uri,
                                             mimeType = fileToShare.mimeType,
-                                            compressIfPossible = true,
                                         ).isSuccess
                                     }
                                     .all { it }

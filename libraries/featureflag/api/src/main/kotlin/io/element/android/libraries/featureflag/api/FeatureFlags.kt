@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.featureflag.api
@@ -22,8 +13,6 @@ import io.element.android.libraries.core.meta.BuildType
 
 /**
  * To enable or disable a FeatureFlags, change the `defaultValue` value.
- * Warning: to enable a flag for the release app, you MUST update the file
- * [io.element.android.libraries.featureflag.impl.StaticFeatureFlagProvider]
  */
 enum class FeatureFlags(
     override val key: String,
@@ -104,13 +93,7 @@ enum class FeatureFlags(
         key = "feature.qrCodeLogin",
         title = "Enable login using QR code",
         description = "Allow the user to login using the QR code flow",
-        defaultValue = { buildMeta ->
-            when (buildMeta.buildType) {
-                // TODO remove once the feature is ready to publish
-                BuildType.RELEASE -> false
-                else -> OnBoardingConfig.CAN_LOGIN_WITH_QR_CODE
-            }
-        },
+        defaultValue = { OnBoardingConfig.CAN_LOGIN_WITH_QR_CODE },
         isFinished = false,
     ),
     IncomingShare(
@@ -124,7 +107,7 @@ enum class FeatureFlags(
         key = "feature.pinnedEvents",
         title = "Pinned Events",
         description = "Allow user to pin events in a room",
-        defaultValue = { false },
+        defaultValue = { true },
         isFinished = false,
     ),
     SyncOnPush(
@@ -132,6 +115,57 @@ enum class FeatureFlags(
         title = "Sync on push",
         description = "Subscribe to room sync when a push is received",
         defaultValue = { true },
+        isFinished = false,
+    ),
+    OnlySignedDeviceIsolationMode(
+        key = "feature.onlySignedDeviceIsolationMode",
+        title = "Exclude insecure devices when sending/receiving messages",
+        description = "This setting controls how end-to-end encryption (E2E) keys are shared." +
+            " Enabling it will prevent the inclusion of devices that have not been explicitly verified by their owners." +
+            " You'll have to stop and re-open the app manually for that setting to take effect.",
+        defaultValue = { false },
+        isFinished = false,
+    ),
+    Knock(
+        key = "feature.knock",
+        title = "Ask to join",
+        description = "Allow creating rooms which users can request access to.",
+        defaultValue = { false },
+        isFinished = false,
+    ),
+    MediaUploadOnSendQueue(
+        key = "feature.media_upload_through_send_queue",
+        title = "Media upload through send queue",
+        description = "Experimental support for treating media uploads as regular events, with an improved retry and cancellation implementation.",
+        defaultValue = { buildMeta -> buildMeta.buildType != BuildType.RELEASE },
+        isFinished = false,
+    ),
+    MediaCaptionCreation(
+        key = "feature.media_caption_creation",
+        title = "Allow creation of media captions",
+        description = null,
+        defaultValue = { true },
+        isFinished = false,
+    ),
+    MediaCaptionWarning(
+        key = "feature.media_caption_creation_warning",
+        title = "Show a compatibility warning on media captions creation",
+        description = null,
+        defaultValue = { true },
+        isFinished = false,
+    ),
+    MediaGallery(
+        key = "feature.media_gallery",
+        title = "Allow user to open the media gallery",
+        description = null,
+        defaultValue = { true },
+        isFinished = false,
+    ),
+    EventCache(
+        key = "feature.event_cache",
+        title = "Use SDK Event cache",
+        description = "Warning: you must kill and restart the app for the change to take effect.",
+        defaultValue = { false },
         isFinished = false,
     ),
 }

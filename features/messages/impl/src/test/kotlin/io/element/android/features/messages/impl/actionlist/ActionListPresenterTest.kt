@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.actionlist
@@ -22,6 +13,9 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.aUserEventPermissions
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
+import io.element.android.features.messages.impl.actionlist.model.TimelineItemActionPostProcessor
+import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure
+import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailureFactory
 import io.element.android.features.messages.impl.fixtures.aMessageEvent
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemCallNotifyContent
@@ -32,15 +26,20 @@ import io.element.android.features.messages.impl.timeline.model.event.aTimelineI
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemVoiceContent
 import io.element.android.features.poll.api.pollcontent.aPollAnswerItemList
+import io.element.android.libraries.dateformatter.test.FakeDateFormatter
 import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
 import io.element.android.libraries.matrix.api.room.MatrixRoom
+import io.element.android.libraries.matrix.api.timeline.item.event.LocalEventSendState
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
+import io.element.android.libraries.matrix.test.A_CAPTION
 import io.element.android.libraries.matrix.test.A_MESSAGE
+import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.room.FakeMatrixRoom
 import io.element.android.libraries.matrix.test.room.aRoomInfo
 import io.element.android.libraries.preferences.test.InMemoryAppPreferencesStore
 import io.element.android.tests.testutils.WarmUpRule
+import io.element.android.tests.testutils.test
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -88,7 +87,9 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = false,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.ViewSource,
                     )
@@ -129,7 +130,9 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = false,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.ViewSource,
                     )
@@ -170,13 +173,61 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
+                        TimelineItemAction.ViewSource,
+                        TimelineItemAction.ReportContent,
+                    )
+                )
+            )
+            initialState.eventSink.invoke(ActionListEvents.Clear)
+            assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
+        }
+    }
+
+    @Test
+    fun `present - compute for others message in a thread`() = runTest {
+        val presenter = createActionListPresenter(isDeveloperModeEnabled = true, isPinFeatureEnabled = true)
+        presenter.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                isMine = false,
+                isEditable = false,
+                isThreaded = true,
+                content = TimelineItemTextContent(body = A_MESSAGE, htmlDocument = null, isEdited = false, formattedBody = null)
+            )
+            initialState.eventSink.invoke(
+                ActionListEvents.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(
+                        canRedactOwn = false,
+                        canRedactOther = false,
+                        canSendMessage = true,
+                        canSendReaction = true,
+                        canPinUnpin = true,
+                    )
+                )
+            )
+            val successState = awaitItem()
+            assertThat(successState.target).isEqualTo(
+                ActionListState.Target.Success(
+                    event = messageEvent,
+                    sentTimeFull = "0 Full true",
+                    displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
+                    actions = persistentListOf(
+                        TimelineItemAction.ReplyInThread,
+                        TimelineItemAction.Forward,
+                        TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
                     )
@@ -217,12 +268,14 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Forward,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
                     )
@@ -261,13 +314,15 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
                         TimelineItemAction.Redact,
@@ -307,13 +362,15 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = false,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
                         TimelineItemAction.Redact,
@@ -354,14 +411,62 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
                         TimelineItemAction.Edit,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
+                        TimelineItemAction.ViewSource,
+                        TimelineItemAction.Redact,
+                    )
+                )
+            )
+            initialState.eventSink.invoke(ActionListEvents.Clear)
+            assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
+        }
+    }
+
+    @Test
+    fun `present - compute for my message in a thread`() = runTest {
+        val presenter = createActionListPresenter(isDeveloperModeEnabled = true, isPinFeatureEnabled = true)
+        presenter.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                isMine = true,
+                isThreaded = true,
+                content = TimelineItemTextContent(body = A_MESSAGE, htmlDocument = null, isEdited = false, formattedBody = null)
+            )
+            initialState.eventSink.invoke(
+                ActionListEvents.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(
+                        canRedactOwn = true,
+                        canRedactOther = false,
+                        canSendMessage = true,
+                        canSendReaction = true,
+                        canPinUnpin = true,
+                    )
+                )
+            )
+            val successState = awaitItem()
+            assertThat(successState.target).isEqualTo(
+                ActionListState.Target.Success(
+                    event = messageEvent,
+                    sentTimeFull = "0 Full true",
+                    displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
+                    actions = persistentListOf(
+                        TimelineItemAction.ReplyInThread,
+                        TimelineItemAction.Forward,
+                        TimelineItemAction.Edit,
+                        TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
                     )
@@ -401,14 +506,16 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
                         TimelineItemAction.Edit,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                     )
                 )
@@ -427,7 +534,7 @@ class ActionListPresenterTest {
             val initialState = awaitItem()
             val messageEvent = aMessageEvent(
                 isMine = true,
-                isEditable = false,
+                isEditable = true,
                 content = aTimelineItemImageContent(),
             )
             initialState.eventSink.invoke(
@@ -442,20 +549,173 @@ class ActionListPresenterTest {
                     ),
                 )
             )
-            // val loadingState = awaitItem()
-            // assertThat(loadingState.target).isEqualTo(ActionListState.Target.Loading(messageEvent))
             val successState = awaitItem()
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
-                        TimelineItemAction.Pin,
+                        TimelineItemAction.AddCaption,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
+                    )
+                )
+            )
+            initialState.eventSink.invoke(ActionListEvents.Clear)
+            assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
+        }
+    }
+
+    @Test
+    fun `present - compute for a media item - caption disabled`() = runTest {
+        val presenter = createActionListPresenter(
+            isDeveloperModeEnabled = true,
+            isPinFeatureEnabled = true,
+            allowCaption = false,
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                isMine = true,
+                isEditable = true,
+                content = aTimelineItemImageContent(),
+            )
+            initialState.eventSink.invoke(
+                ActionListEvents.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(
+                        canRedactOwn = true,
+                        canRedactOther = false,
+                        canSendMessage = true,
+                        canSendReaction = true,
+                        canPinUnpin = true,
+                    ),
+                )
+            )
+            val successState = awaitItem()
+            assertThat(successState.target).isEqualTo(
+                ActionListState.Target.Success(
+                    event = messageEvent,
+                    sentTimeFull = "0 Full true",
+                    displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
+                    actions = persistentListOf(
+                        TimelineItemAction.Reply,
+                        TimelineItemAction.Forward,
+                        // Not here
+                        // TimelineItemAction.AddCaption,
+                        TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.ViewSource,
+                        TimelineItemAction.Redact,
+                    )
+                )
+            )
+            initialState.eventSink.invoke(ActionListEvents.Clear)
+            assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
+        }
+    }
+
+    @Test
+    fun `present - compute for a media with caption item`() = runTest {
+        val presenter = createActionListPresenter(isDeveloperModeEnabled = true, isPinFeatureEnabled = true)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                isMine = true,
+                isEditable = true,
+                content = aTimelineItemImageContent(
+                    caption = A_CAPTION,
+                ),
+            )
+            initialState.eventSink.invoke(
+                ActionListEvents.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(
+                        canRedactOwn = true,
+                        canRedactOther = false,
+                        canSendMessage = true,
+                        canSendReaction = true,
+                        canPinUnpin = true,
+                    ),
+                )
+            )
+            val successState = awaitItem()
+            assertThat(successState.target).isEqualTo(
+                ActionListState.Target.Success(
+                    event = messageEvent,
+                    sentTimeFull = "0 Full true",
+                    displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
+                    actions = persistentListOf(
+                        TimelineItemAction.Reply,
+                        TimelineItemAction.Forward,
+                        TimelineItemAction.EditCaption,
+                        TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyCaption,
+                        TimelineItemAction.RemoveCaption,
+                        TimelineItemAction.ViewSource,
+                        TimelineItemAction.Redact,
+                    )
+                )
+            )
+            initialState.eventSink.invoke(ActionListEvents.Clear)
+            assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
+        }
+    }
+
+    @Test
+    fun `present - compute for a media with caption item - other user event`() = runTest {
+        val presenter = createActionListPresenter(isDeveloperModeEnabled = true, isPinFeatureEnabled = true)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                isMine = false,
+                isEditable = false,
+                content = aTimelineItemImageContent(
+                    caption = A_CAPTION,
+                ),
+            )
+            initialState.eventSink.invoke(
+                ActionListEvents.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(
+                        canRedactOwn = true,
+                        canRedactOther = false,
+                        canSendMessage = true,
+                        canSendReaction = true,
+                        canPinUnpin = true,
+                    ),
+                )
+            )
+            val successState = awaitItem()
+            assertThat(successState.target).isEqualTo(
+                ActionListState.Target.Success(
+                    event = messageEvent,
+                    sentTimeFull = "0 Full true",
+                    displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
+                    actions = persistentListOf(
+                        TimelineItemAction.Reply,
+                        TimelineItemAction.Forward,
+                        TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyCaption,
+                        TimelineItemAction.ViewSource,
+                        TimelineItemAction.ReportContent,
                     )
                 )
             )
@@ -493,7 +753,9 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = stateEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = false,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.ViewSource,
                     )
@@ -562,14 +824,16 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
                         TimelineItemAction.Edit,
-                        TimelineItemAction.Pin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.Redact,
                     )
                 )
@@ -608,13 +872,15 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
                         TimelineItemAction.Edit,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
                     )
@@ -661,14 +927,16 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
                         TimelineItemAction.Edit,
-                        TimelineItemAction.Unpin,
-                        TimelineItemAction.Copy,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Unpin,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
                     )
@@ -757,10 +1025,12 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Edit,
-                        TimelineItemAction.Copy,
+                        TimelineItemAction.CopyText,
                         TimelineItemAction.Redact,
                     )
                 )
@@ -796,13 +1066,15 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
-                        TimelineItemAction.Reply,
-                        TimelineItemAction.Edit,
                         TimelineItemAction.EndPoll,
-                        TimelineItemAction.Pin,
+                        TimelineItemAction.Reply,
+                        TimelineItemAction.EditPoll,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
                         TimelineItemAction.Redact,
                     )
                 )
@@ -838,12 +1110,14 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
-                        TimelineItemAction.Reply,
                         TimelineItemAction.EndPoll,
-                        TimelineItemAction.Pin,
+                        TimelineItemAction.Reply,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
                         TimelineItemAction.Redact,
                     )
                 )
@@ -879,11 +1153,13 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
-                        TimelineItemAction.Pin,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
                         TimelineItemAction.Redact,
                     )
                 )
@@ -901,7 +1177,9 @@ class ActionListPresenterTest {
             val messageEvent = aMessageEvent(
                 isMine = true,
                 isEditable = false,
-                content = aTimelineItemVoiceContent(),
+                content = aTimelineItemVoiceContent(
+                    caption = null,
+                ),
             )
             initialState.eventSink.invoke(
                 ActionListEvents.ComputeForMessage(
@@ -919,12 +1197,14 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Reply,
                         TimelineItemAction.Forward,
-                        TimelineItemAction.Pin,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.Pin,
                         TimelineItemAction.Redact,
                     )
                 )
@@ -958,12 +1238,40 @@ class ActionListPresenterTest {
             assertThat(successState.target).isEqualTo(
                 ActionListState.Target.Success(
                     event = messageEvent,
+                    sentTimeFull = "0 Full true",
                     displayEmojiReactions = false,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.ViewSource
                     )
                 )
             )
+        }
+    }
+
+    @Test
+    fun `present - compute for verified user send failure`() = runTest {
+        val room = FakeMatrixRoom(
+            userDisplayNameResult = { Result.success("Alice") }
+        )
+        val presenter = createActionListPresenter(isDeveloperModeEnabled = false, isPinFeatureEnabled = false, room = room)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                sendState = LocalEventSendState.Failed.VerifiedUserChangedIdentity(users = listOf(A_USER_ID)),
+            )
+            initialState.eventSink.invoke(
+                ActionListEvents.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(),
+                )
+            )
+            skipItems(1)
+            val successState = awaitItem()
+            val target = successState.target as ActionListState.Target.Success
+            assertThat(target.verifiedUserSendFailure).isEqualTo(VerifiedUserSendFailure.ChangedIdentity(userDisplayName = "Alice"))
         }
     }
 }
@@ -972,16 +1280,20 @@ private fun createActionListPresenter(
     isDeveloperModeEnabled: Boolean,
     isPinFeatureEnabled: Boolean,
     room: MatrixRoom = FakeMatrixRoom(),
+    allowCaption: Boolean = true,
 ): ActionListPresenter {
     val preferencesStore = InMemoryAppPreferencesStore(isDeveloperModeEnabled = isDeveloperModeEnabled)
-    val featureFlagsService = FakeFeatureFlagService(
-        initialState = mapOf(
-            FeatureFlags.PinnedEvents.key to isPinFeatureEnabled,
-        )
-    )
-    return ActionListPresenter(
+    return DefaultActionListPresenter(
+        postProcessor = TimelineItemActionPostProcessor.Default,
         appPreferencesStore = preferencesStore,
-        featureFlagsService = featureFlagsService,
-        room = room
+        isPinnedMessagesFeatureEnabled = { isPinFeatureEnabled },
+        room = room,
+        userSendFailureFactory = VerifiedUserSendFailureFactory(room),
+        featureFlagService = FakeFeatureFlagService(
+            initialState = mapOf(
+                FeatureFlags.MediaCaptionCreation.key to allowCaption,
+            ),
+        ),
+        dateFormatter = FakeDateFormatter(),
     )
 }

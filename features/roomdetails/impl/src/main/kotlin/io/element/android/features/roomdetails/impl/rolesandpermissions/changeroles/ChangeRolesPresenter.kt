@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomdetails.impl.rolesandpermissions.changeroles
@@ -143,7 +134,7 @@ class ChangeRolesPresenter @AssistedInject constructor(
                 is ChangeRolesEvent.Save -> {
                     if (role == RoomMember.Role.ADMIN && selectedUsers != usersWithRole && !saveState.value.isConfirming()) {
                         // Confirm adding admin
-                        saveState.value = AsyncAction.Confirming
+                        saveState.value = AsyncAction.ConfirmingNoParams
                     } else if (!saveState.value.isLoading()) {
                         coroutineScope.save(usersWithRole.value, selectedUsers, saveState)
                     }
@@ -154,7 +145,7 @@ class ChangeRolesPresenter @AssistedInject constructor(
                 is ChangeRolesEvent.Exit -> {
                     exitState.value = if (exitState.value.isUninitialized() && hasPendingChanges) {
                         // Has pending changes, confirm exit
-                        AsyncAction.Confirming
+                        AsyncAction.ConfirmingNoParams
                     } else {
                         // No pending changes, exit immediately
                         AsyncAction.Success(Unit)

@@ -1,35 +1,31 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.preferences.test
 
+import io.element.android.libraries.matrix.api.tracing.LogLevel
 import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class InMemoryAppPreferencesStore(
     isDeveloperModeEnabled: Boolean = false,
+    hideImagesAndVideos: Boolean = false,
     customElementCallBaseUrl: String? = null,
     theme: String? = null,
-    simplifiedSlidingSyncEnabled: Boolean = false
+    simplifiedSlidingSyncEnabled: Boolean = false,
+    logLevel: LogLevel = LogLevel.INFO,
 ) : AppPreferencesStore {
     private val isDeveloperModeEnabled = MutableStateFlow(isDeveloperModeEnabled)
+    private val hideImagesAndVideos = MutableStateFlow(hideImagesAndVideos)
     private val customElementCallBaseUrl = MutableStateFlow(customElementCallBaseUrl)
     private val theme = MutableStateFlow(theme)
     private val simplifiedSlidingSyncEnabled = MutableStateFlow(simplifiedSlidingSyncEnabled)
+    private val logLevel = MutableStateFlow(logLevel)
 
     override suspend fun setDeveloperModeEnabled(enabled: Boolean) {
         isDeveloperModeEnabled.value = enabled
@@ -55,12 +51,20 @@ class InMemoryAppPreferencesStore(
         return theme
     }
 
-    override suspend fun setSimplifiedSlidingSyncEnabled(enabled: Boolean) {
-        simplifiedSlidingSyncEnabled.value = enabled
+    override suspend fun setHideImagesAndVideos(value: Boolean) {
+        hideImagesAndVideos.value = value
     }
 
-    override fun isSimplifiedSlidingSyncEnabledFlow(): Flow<Boolean> {
-        return simplifiedSlidingSyncEnabled
+    override fun doesHideImagesAndVideosFlow(): Flow<Boolean> {
+        return hideImagesAndVideos
+    }
+
+    override suspend fun setTracingLogLevel(logLevel: LogLevel) {
+        this.logLevel.value = logLevel
+    }
+
+    override fun getTracingLogLevelFlow(): Flow<LogLevel> {
+        return logLevel
     }
 
     override suspend fun reset() {

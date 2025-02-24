@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.impl.room
@@ -24,10 +15,13 @@ import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.room.MatrixRoomInfo
 import io.element.android.libraries.matrix.api.room.RoomNotificationMode
 import io.element.android.libraries.matrix.api.user.MatrixUser
+import io.element.android.libraries.matrix.impl.room.history.map
+import io.element.android.libraries.matrix.impl.room.join.map
 import io.element.android.libraries.matrix.impl.room.member.RoomMemberMapper
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentMap
+import org.matrix.rustcomponents.sdk.Membership
 import org.matrix.rustcomponents.sdk.RoomHero
 import org.matrix.rustcomponents.sdk.Membership as RustMembership
 import org.matrix.rustcomponents.sdk.RoomInfo as RustRoomInfo
@@ -37,17 +31,18 @@ class MatrixRoomInfoMapper {
     fun map(rustRoomInfo: RustRoomInfo): MatrixRoomInfo = rustRoomInfo.let {
         return MatrixRoomInfo(
             id = RoomId(it.id),
+            creator = it.creator?.let(::UserId),
             name = it.displayName,
             rawName = it.rawName,
             topic = it.topic,
             avatarUrl = it.avatarUrl,
             isDirect = it.isDirect,
-            isPublic = it.isPublic,
+            joinRule = it.joinRule?.map(),
             isSpace = it.isSpace,
             isTombstoned = it.isTombstoned,
             isFavorite = it.isFavourite,
             canonicalAlias = it.canonicalAlias?.let(::RoomAlias),
-            alternativeAliases = it.alternativeAliases.toImmutableList(),
+            alternativeAliases = it.alternativeAliases.map(::RoomAlias).toImmutableList(),
             currentUserMembership = it.membership.map(),
             inviter = it.inviter?.let(RoomMemberMapper::map),
             activeMembersCount = it.activeMembersCount.toLong(),
@@ -58,9 +53,14 @@ class MatrixRoomInfoMapper {
             notificationCount = it.notificationCount.toLong(),
             userDefinedNotificationMode = it.cachedUserDefinedNotificationMode?.map(),
             hasRoomCall = it.hasRoomCall,
-            activeRoomCallParticipants = it.activeRoomCallParticipants.toImmutableList(),
+            activeRoomCallParticipants = it.activeRoomCallParticipants.map(::UserId).toImmutableList(),
             heroes = it.elementHeroes().toImmutableList(),
             pinnedEventIds = it.pinnedEventIds.map(::EventId).toImmutableList(),
+            isMarkedUnread = it.isMarkedUnread,
+            numUnreadMessages = it.numUnreadMessages.toLong(),
+            numUnreadMentions = it.numUnreadMentions.toLong(),
+            numUnreadNotifications = it.numUnreadNotifications.toLong(),
+            historyVisibility = it.historyVisibility.map(),
         )
     }
 }
@@ -69,6 +69,8 @@ fun RustMembership.map(): CurrentUserMembership = when (this) {
     RustMembership.INVITED -> CurrentUserMembership.INVITED
     RustMembership.JOINED -> CurrentUserMembership.JOINED
     RustMembership.LEFT -> CurrentUserMembership.LEFT
+    Membership.KNOCKED -> CurrentUserMembership.KNOCKED
+    RustMembership.BANNED -> CurrentUserMembership.BANNED
 }
 
 fun RustRoomNotificationMode.map(): RoomNotificationMode = when (this) {

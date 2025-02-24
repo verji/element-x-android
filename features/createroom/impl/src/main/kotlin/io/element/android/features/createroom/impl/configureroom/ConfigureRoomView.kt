@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.createroom.impl.configureroom
@@ -20,8 +11,10 @@ import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -42,23 +35,29 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.createroom.impl.R
-import io.element.android.features.createroom.impl.components.RoomPrivacyOption
-import io.element.android.libraries.designsystem.components.LabelledTextField
+import io.element.android.libraries.architecture.coverage.ExcludeFromCoverage
+import io.element.android.libraries.designsystem.atomic.atoms.RoundedIconAtom
+import io.element.android.libraries.designsystem.atomic.atoms.RoundedIconAtomSize
 import io.element.android.libraries.designsystem.components.async.AsyncActionView
 import io.element.android.libraries.designsystem.components.async.AsyncActionViewDefaults
 import io.element.android.libraries.designsystem.components.button.BackButton
+import io.element.android.libraries.designsystem.components.list.ListItemContent
 import io.element.android.libraries.designsystem.modifiers.clearFocusOnTap
-import io.element.android.libraries.designsystem.preview.ElementPreview
-import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.designsystem.preview.ElementPreviewDark
+import io.element.android.libraries.designsystem.preview.ElementPreviewLight
+import io.element.android.libraries.designsystem.preview.PreviewWithLargeHeight
 import io.element.android.libraries.designsystem.theme.aliasScreenTitle
+import io.element.android.libraries.designsystem.theme.components.ListItem
 import io.element.android.libraries.designsystem.theme.components.Scaffold
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.theme.components.TextButton
+import io.element.android.libraries.designsystem.theme.components.TextField
 import io.element.android.libraries.designsystem.theme.components.TopAppBar
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.ui.components.AvatarActionBottomSheet
 import io.element.android.libraries.matrix.ui.components.SelectedUsersRowList
 import io.element.android.libraries.matrix.ui.components.UnsavedAvatar
+import io.element.android.libraries.matrix.ui.room.address.RoomAddressField
 import io.element.android.libraries.permissions.api.PermissionsView
 import io.element.android.libraries.ui.strings.CommonStrings
 
@@ -81,11 +80,11 @@ fun ConfigureRoomView(
         modifier = modifier.clearFocusOnTap(focusManager),
         topBar = {
             ConfigureRoomToolbar(
-                isNextActionEnabled = state.isCreateButtonEnabled,
+                isNextActionEnabled = state.isValid,
                 onBackClick = onBackClick,
                 onNextClick = {
                     focusManager.clearFocus()
-                    state.eventSink(ConfigureRoomEvents.CreateRoom(state.config))
+                    state.eventSink(ConfigureRoomEvents.CreateRoom)
                 },
             )
         }
@@ -112,23 +111,46 @@ fun ConfigureRoomView(
             )
             if (state.config.invites.isNotEmpty()) {
                 SelectedUsersRowList(
-                    modifier = Modifier.padding(bottom = 16.dp),
                     contentPadding = PaddingValues(horizontal = 24.dp),
                     selectedUsers = state.config.invites,
                     onUserRemove = {
                         focusManager.clearFocus()
-                        state.eventSink(ConfigureRoomEvents.RemoveFromSelection(it))
+                        state.eventSink(ConfigureRoomEvents.RemoveUserFromSelection(it))
                     },
                 )
             }
-            RoomPrivacyOptions(
-                modifier = Modifier.padding(bottom = 40.dp),
-                selected = state.config.privacy,
+            RoomVisibilityOptions(
+                selected = when (state.config.roomVisibility) {
+                    is RoomVisibilityState.Private -> RoomVisibilityItem.Private
+                    is RoomVisibilityState.Public -> RoomVisibilityItem.Public
+                },
                 onOptionClick = {
                     focusManager.clearFocus()
-                    state.eventSink(ConfigureRoomEvents.RoomPrivacyChanged(it.privacy))
+                    state.eventSink(ConfigureRoomEvents.RoomVisibilityChanged(it))
                 },
             )
+            if (state.config.roomVisibility is RoomVisibilityState.Public && state.isKnockFeatureEnabled) {
+                RoomAccessOptions(
+                    selected = when (state.config.roomVisibility.roomAccess) {
+                        RoomAccess.Anyone -> RoomAccessItem.Anyone
+                        RoomAccess.Knocking -> RoomAccessItem.AskToJoin
+                    },
+                    onOptionClick = {
+                        focusManager.clearFocus()
+                        state.eventSink(ConfigureRoomEvents.RoomAccessChanged(it))
+                    },
+                )
+                RoomAddressField(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    address = state.config.roomVisibility.roomAddress.value,
+                    homeserverName = state.homeserverName,
+                    addressValidity = state.roomAddressValidity,
+                    onAddressChange = { state.eventSink(ConfigureRoomEvents.RoomAddressChanged(it)) },
+                    label = stringResource(R.string.screen_create_room_room_address_section_title),
+                    supportingText = stringResource(R.string.screen_create_room_room_address_section_footer),
+                )
+                Spacer(Modifier)
+            }
         }
     }
 
@@ -148,7 +170,7 @@ fun ConfigureRoomView(
         },
         onSuccess = { onCreateRoomSuccess(it) },
         errorMessage = { stringResource(R.string.screen_create_room_error_creating_room) },
-        onRetry = { state.eventSink(ConfigureRoomEvents.CreateRoom(state.config)) },
+        onRetry = { state.eventSink(ConfigureRoomEvents.CreateRoom) },
         onErrorDismiss = { state.eventSink(ConfigureRoomEvents.CancelCreateRoom) },
     )
 
@@ -200,7 +222,7 @@ private fun RoomNameWithAvatar(
             modifier = Modifier.clickable(onClick = onAvatarClick),
         )
 
-        LabelledTextField(
+        TextField(
             label = stringResource(R.string.screen_create_room_room_name_label),
             value = roomName,
             placeholder = stringResource(CommonStrings.common_room_name_placeholder),
@@ -216,13 +238,13 @@ private fun RoomTopic(
     onTopicChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LabelledTextField(
+    TextField(
         modifier = modifier,
         label = stringResource(R.string.screen_create_room_topic_label),
         value = topic,
-        placeholder = stringResource(CommonStrings.common_topic_placeholder),
         onValueChange = onTopicChange,
         maxLines = 3,
+        supportingText = stringResource(CommonStrings.common_topic_placeholder),
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.Sentences,
         ),
@@ -230,26 +252,87 @@ private fun RoomTopic(
 }
 
 @Composable
-private fun RoomPrivacyOptions(
-    selected: RoomPrivacy?,
-    onOptionClick: (RoomPrivacyItem) -> Unit,
+private fun ConfigureRoomOptions(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier.selectableGroup()
+    ) {
+        Text(
+            text = title,
+            style = ElementTheme.typography.fontBodyLgMedium,
+            color = ElementTheme.colors.textPrimary,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        content()
+    }
+}
+
+@Composable
+private fun RoomVisibilityOptions(
+    selected: RoomVisibilityItem,
+    onOptionClick: (RoomVisibilityItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val items = roomPrivacyItems()
-    Column(modifier = modifier.selectableGroup()) {
-        items.forEach { item ->
-            RoomPrivacyOption(
-                roomPrivacyItem = item,
-                isSelected = selected == item.privacy,
-                onOptionClick = onOptionClick,
+    ConfigureRoomOptions(
+        title = stringResource(R.string.screen_create_room_room_visibility_section_title),
+        modifier = modifier,
+    ) {
+        RoomVisibilityItem.entries.forEach { item ->
+            val isSelected = item == selected
+            ListItem(
+                leadingContent = ListItemContent.Custom {
+                    RoundedIconAtom(
+                        size = RoundedIconAtomSize.Big,
+                        resourceId = item.icon,
+                        tint = if (isSelected) ElementTheme.colors.iconPrimary else ElementTheme.colors.iconSecondary,
+                    )
+                },
+                headlineContent = { Text(text = stringResource(item.title)) },
+                supportingContent = { Text(text = stringResource(item.description)) },
+                trailingContent = ListItemContent.RadioButton(selected = isSelected),
+                onClick = { onOptionClick(item) },
             )
         }
     }
 }
 
-@PreviewsDayNight
 @Composable
-internal fun ConfigureRoomViewPreview(@PreviewParameter(ConfigureRoomStateProvider::class) state: ConfigureRoomState) = ElementPreview {
+private fun RoomAccessOptions(
+    selected: RoomAccessItem,
+    onOptionClick: (RoomAccessItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ConfigureRoomOptions(
+        title = stringResource(R.string.screen_create_room_room_access_section_header),
+        modifier = modifier,
+    ) {
+        RoomAccessItem.entries.forEach { item ->
+            ListItem(
+                headlineContent = { Text(text = stringResource(item.title)) },
+                supportingContent = { Text(text = stringResource(item.description)) },
+                trailingContent = ListItemContent.RadioButton(selected = item == selected),
+                onClick = { onOptionClick(item) },
+            )
+        }
+    }
+}
+
+@PreviewWithLargeHeight
+@Composable
+internal fun ConfigureRoomViewLightPreview(@PreviewParameter(ConfigureRoomStateProvider::class) state: ConfigureRoomState) =
+    ElementPreviewLight { ContentToPreview(state) }
+
+@PreviewWithLargeHeight
+@Composable
+internal fun ConfigureRoomViewDarkPreview(@PreviewParameter(ConfigureRoomStateProvider::class) state: ConfigureRoomState) =
+    ElementPreviewDark { ContentToPreview(state) }
+
+@ExcludeFromCoverage
+@Composable
+private fun ContentToPreview(state: ConfigureRoomState) {
     ConfigureRoomView(
         state = state,
         onBackClick = {},

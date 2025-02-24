@@ -1,23 +1,15 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.push.impl
 
 import com.squareup.anvil.annotations.ContributesBinding
 import io.element.android.libraries.di.AppScope
+import io.element.android.libraries.di.SingleIn
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.push.api.GetCurrentPushProvider
@@ -26,17 +18,27 @@ import io.element.android.libraries.push.impl.test.TestPush
 import io.element.android.libraries.pushproviders.api.Distributor
 import io.element.android.libraries.pushproviders.api.PushProvider
 import io.element.android.libraries.pushstore.api.UserPushStoreFactory
+import io.element.android.libraries.pushstore.api.clientsecret.PushClientSecretStore
+import io.element.android.libraries.sessionstorage.api.observer.SessionListener
+import io.element.android.libraries.sessionstorage.api.observer.SessionObserver
 import kotlinx.coroutines.flow.Flow
 import timber.log.Timber
 import javax.inject.Inject
 
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = PushService::class)
+@SingleIn(AppScope::class)
 class DefaultPushService @Inject constructor(
     private val testPush: TestPush,
     private val userPushStoreFactory: UserPushStoreFactory,
     private val pushProviders: Set<@JvmSuppressWildcards PushProvider>,
     private val getCurrentPushProvider: GetCurrentPushProvider,
-) : PushService {
+    private val sessionObserver: SessionObserver,
+    private val pushClientSecretStore: PushClientSecretStore,
+) : PushService, SessionListener {
+    init {
+        observeSessions()
+    }
+
     override suspend fun getCurrentPushProvider(): PushProvider? {
         val currentPushProvider = getCurrentPushProvider.getCurrentPushProvider()
         return pushProviders.find { it.name == currentPushProvider }
@@ -56,7 +58,7 @@ class DefaultPushService @Inject constructor(
         val userPushStore = userPushStoreFactory.getOrCreate(matrixClient.sessionId)
         val currentPushProviderName = userPushStore.getPushProviderName()
         val currentPushProvider = pushProviders.find { it.name == currentPushProviderName }
-        val currentDistributorValue = currentPushProvider?.getCurrentDistributor(matrixClient)?.value
+        val currentDistributorValue = currentPushProvider?.getCurrentDistributor(matrixClient.sessionId)?.value
         if (currentPushProviderName != pushProvider.name || currentDistributorValue != distributor.value) {
             // Unregister previous one if any
             currentPushProvider
@@ -74,11 +76,11 @@ class DefaultPushService @Inject constructor(
     }
 
     override suspend fun selectPushProvider(
-        matrixClient: MatrixClient,
+        sessionId: SessionId,
         pushProvider: PushProvider,
     ) {
         Timber.d("Select ${pushProvider.name}")
-        val userPushStore = userPushStoreFactory.getOrCreate(matrixClient.sessionId)
+        val userPushStore = userPushStoreFactory.getOrCreate(sessionId)
         userPushStore.setPushProviderName(pushProvider.name)
     }
 
@@ -95,5 +97,32 @@ class DefaultPushService @Inject constructor(
         val config = pushProvider.getCurrentUserPushConfig() ?: return false
         testPush.execute(config)
         return true
+    }
+
+    private fun observeSessions() {
+        sessionObserver.addListener(this)
+    }
+
+    override suspend fun onSessionCreated(userId: String) {
+        // Nothing to do
+    }
+
+    /**
+     * The session has been deleted.
+     * In this case, this is not necessary to unregister the pusher from the homeserver,
+     * but we need to do some cleanup locally.
+     * The current push provider may want to take action, and we need to
+     * cleanup the stores.
+     */
+    override suspend fun onSessionDeleted(userId: String) {
+        val sessionId = SessionId(userId)
+        val userPushStore = userPushStoreFactory.getOrCreate(sessionId)
+        val currentPushProviderName = userPushStore.getPushProviderName()
+        val currentPushProvider = pushProviders.find { it.name == currentPushProviderName }
+        // Cleanup the current push provider. They may need the client secret, so delete the secret after.
+        currentPushProvider?.onSessionDeleted(sessionId)
+        // Now we can safely reset the stores.
+        pushClientSecretStore.resetSecret(sessionId)
+        userPushStore.reset()
     }
 }

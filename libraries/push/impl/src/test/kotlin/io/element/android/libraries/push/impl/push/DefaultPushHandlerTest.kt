@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 @file:OptIn(ExperimentalCoroutinesApi::class)
@@ -247,8 +238,19 @@ class DefaultPushHandlerTest {
             unread = 0,
             clientSecret = A_SECRET,
         )
-        val handleIncomingCallLambda = lambdaRecorder<CallType.RoomCall, EventId, UserId, String?, String?, String?, String, Unit> { _, _, _, _, _, _, _ -> }
+        val handleIncomingCallLambda = lambdaRecorder<
+            CallType.RoomCall,
+            EventId,
+            UserId,
+            String?,
+            String?,
+            String?,
+            String,
+            String?,
+            Unit,
+            > { _, _, _, _, _, _, _, _ -> }
         val elementCallEntryPoint = FakeElementCallEntryPoint(handleIncomingCallResult = handleIncomingCallLambda)
+        val onNotifiableEventReceived = lambdaRecorder<NotifiableEvent, Unit> {}
         val defaultPushHandler = createDefaultPushHandler(
             elementCallEntryPoint = elementCallEntryPoint,
             notifiableEventResult = { _, _, _ ->
@@ -258,10 +260,11 @@ class DefaultPushHandlerTest {
             pushClientSecret = FakePushClientSecret(
                 getUserIdFromSecretResult = { A_USER_ID }
             ),
+            onNotifiableEventReceived = onNotifiableEventReceived,
         )
         defaultPushHandler.handle(aPushData)
-
         handleIncomingCallLambda.assertions().isCalledOnce()
+        onNotifiableEventReceived.assertions().isCalledOnce()
     }
 
     @Test
@@ -273,7 +276,17 @@ class DefaultPushHandlerTest {
             clientSecret = A_SECRET,
         )
         val onNotifiableEventReceived = lambdaRecorder<NotifiableEvent, Unit> {}
-        val handleIncomingCallLambda = lambdaRecorder<CallType.RoomCall, EventId, UserId, String?, String?, String?, String, Unit> { _, _, _, _, _, _, _ -> }
+        val handleIncomingCallLambda = lambdaRecorder<
+            CallType.RoomCall,
+            EventId,
+            UserId,
+            String?,
+            String?,
+            String?,
+            String,
+            String?,
+            Unit,
+            > { _, _, _, _, _, _, _, _ -> }
         val elementCallEntryPoint = FakeElementCallEntryPoint(handleIncomingCallResult = handleIncomingCallLambda)
         val defaultPushHandler = createDefaultPushHandler(
             elementCallEntryPoint = elementCallEntryPoint,
@@ -301,7 +314,17 @@ class DefaultPushHandlerTest {
             clientSecret = A_SECRET,
         )
         val onNotifiableEventReceived = lambdaRecorder<NotifiableEvent, Unit> {}
-        val handleIncomingCallLambda = lambdaRecorder<CallType.RoomCall, EventId, UserId, String?, String?, String?, String, Unit> { _, _, _, _, _, _, _ -> }
+        val handleIncomingCallLambda = lambdaRecorder<
+            CallType.RoomCall,
+            EventId,
+            UserId,
+            String?,
+            String?,
+            String?,
+            String,
+            String?,
+            Unit,
+            > { _, _, _, _, _, _, _, _ -> }
         val elementCallEntryPoint = FakeElementCallEntryPoint(handleIncomingCallResult = handleIncomingCallLambda)
         val defaultPushHandler = createDefaultPushHandler(
             elementCallEntryPoint = elementCallEntryPoint,
@@ -319,7 +342,7 @@ class DefaultPushHandlerTest {
         )
         defaultPushHandler.handle(aPushData)
         handleIncomingCallLambda.assertions().isCalledOnce()
-        onNotifiableEventReceived.assertions().isNeverCalled()
+        onNotifiableEventReceived.assertions().isCalledOnce()
     }
 
     @Test

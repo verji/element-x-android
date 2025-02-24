@@ -1,26 +1,17 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.impl.timeline
 
+import io.element.android.libraries.featureflag.api.FeatureFlagService
+import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.ProgressCallback
 import io.element.android.libraries.matrix.api.core.RoomId
-import io.element.android.libraries.matrix.api.core.TransactionId
-import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.media.AudioInfo
 import io.element.android.libraries.matrix.api.media.FileInfo
 import io.element.android.libraries.matrix.api.media.ImageInfo
@@ -35,6 +26,7 @@ import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.TimelineException
+import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
 import io.element.android.libraries.matrix.impl.core.toProgressWatcher
 import io.element.android.libraries.matrix.impl.media.MediaUploadHandlerImpl
@@ -49,20 +41,22 @@ import io.element.android.libraries.matrix.impl.timeline.item.virtual.VirtualTim
 import io.element.android.libraries.matrix.impl.timeline.postprocessor.LastForwardIndicatorsPostProcessor
 import io.element.android.libraries.matrix.impl.timeline.postprocessor.LoadingIndicatorsPostProcessor
 import io.element.android.libraries.matrix.impl.timeline.postprocessor.RoomBeginningPostProcessor
-import io.element.android.libraries.matrix.impl.timeline.postprocessor.TimelineEncryptedHistoryPostProcessor
+import io.element.android.libraries.matrix.impl.timeline.postprocessor.TypingNotificationPostProcessor
 import io.element.android.libraries.matrix.impl.timeline.reply.InReplyToMapper
 import io.element.android.libraries.matrix.impl.util.MessageEventContent
 import io.element.android.services.toolbox.api.systemclock.SystemClock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -71,36 +65,37 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.matrix.rustcomponents.sdk.EventTimelineItem
+import org.matrix.rustcomponents.sdk.EditedContent
 import org.matrix.rustcomponents.sdk.FormattedBody
 import org.matrix.rustcomponents.sdk.MessageFormat
+import org.matrix.rustcomponents.sdk.PollData
 import org.matrix.rustcomponents.sdk.SendAttachmentJoinHandle
+import org.matrix.rustcomponents.sdk.UploadParameters
 import org.matrix.rustcomponents.sdk.use
 import timber.log.Timber
 import uniffi.matrix_sdk_ui.LiveBackPaginationStatus
 import java.io.File
-import java.util.Date
+import org.matrix.rustcomponents.sdk.EventOrTransactionId as RustEventOrTransactionId
 import org.matrix.rustcomponents.sdk.Timeline as InnerTimeline
 
 private const val PAGINATION_SIZE = 50
 
 class RustTimeline(
     private val inner: InnerTimeline,
-    private val isLive: Boolean,
+    mode: Timeline.Mode,
     systemClock: SystemClock,
-    isKeyBackupEnabled: Boolean,
     private val matrixRoom: MatrixRoom,
     private val coroutineScope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher,
-    lastLoginTimestamp: Date?,
     private val roomContentForwarder: RoomContentForwarder,
+    private val featureFlagsService: FeatureFlagService,
     onNewSyncedEvent: () -> Unit,
 ) : Timeline {
     private val initLatch = CompletableDeferred<Unit>()
-    private val isInit = MutableStateFlow(false)
+    private val isTimelineInitialized = MutableStateFlow(false)
 
-    private val _timelineItems: MutableStateFlow<List<MatrixTimelineItem>> =
-        MutableStateFlow(emptyList())
+    private val _timelineItems: MutableSharedFlow<List<MatrixTimelineItem>> =
+        MutableSharedFlow(replay = 1, extraBufferCapacity = Int.MAX_VALUE)
 
     private val timelineEventContentMapper = TimelineEventContentMapper()
     private val inReplyToMapper = InReplyToMapper(timelineEventContentMapper)
@@ -116,37 +111,32 @@ class RustTimeline(
         timelineItems = _timelineItems,
         timelineItemFactory = timelineItemMapper,
     )
-    private val encryptedHistoryPostProcessor = TimelineEncryptedHistoryPostProcessor(
-        lastLoginTimestamp = lastLoginTimestamp,
-        isRoomEncrypted = matrixRoom.isEncrypted,
-        isKeyBackupEnabled = isKeyBackupEnabled,
-        dispatcher = dispatcher,
-    )
     private val timelineItemsSubscriber = TimelineItemsSubscriber(
         timeline = inner,
         timelineCoroutineScope = coroutineScope,
         timelineDiffProcessor = timelineDiffProcessor,
         initLatch = initLatch,
-        isInit = isInit,
+        isTimelineInitialized = isTimelineInitialized,
         dispatcher = dispatcher,
         onNewSyncedEvent = onNewSyncedEvent,
     )
 
-    private val roomBeginningPostProcessor = RoomBeginningPostProcessor()
+    private val roomBeginningPostProcessor = RoomBeginningPostProcessor(mode)
     private val loadingIndicatorsPostProcessor = LoadingIndicatorsPostProcessor(systemClock)
-    private val lastForwardIndicatorsPostProcessor = LastForwardIndicatorsPostProcessor(isLive)
+    private val lastForwardIndicatorsPostProcessor = LastForwardIndicatorsPostProcessor(mode)
+    private val typingNotificationPostProcessor = TypingNotificationPostProcessor(mode)
 
     private val backPaginationStatus = MutableStateFlow(
-        Timeline.PaginationStatus(isPaginating = false, hasMoreToLoad = true)
+        Timeline.PaginationStatus(isPaginating = false, hasMoreToLoad = mode != Timeline.Mode.PINNED_EVENTS)
     )
 
     private val forwardPaginationStatus = MutableStateFlow(
-        Timeline.PaginationStatus(isPaginating = false, hasMoreToLoad = !isLive)
+        Timeline.PaginationStatus(isPaginating = false, hasMoreToLoad = mode == Timeline.Mode.FOCUSED_ON_EVENT)
     )
 
     init {
         coroutineScope.fetchMembers()
-        if (isLive) {
+        if (mode == Timeline.Mode.LIVE) {
             // When timeline is live, we need to listen to the back pagination status as
             // sdk can automatically paginate backwards.
             coroutineScope.registerBackPaginationStatusListener()
@@ -168,8 +158,8 @@ class RustTimeline(
 
     override val membershipChangeEventReceived: Flow<Unit> = timelineDiffProcessor.membershipChangeEventReceived
 
-    override suspend fun sendReadReceipt(eventId: EventId, receiptType: ReceiptType): Result<Unit> {
-        return runCatching {
+    override suspend fun sendReadReceipt(eventId: EventId, receiptType: ReceiptType): Result<Unit> = withContext(dispatcher) {
+        runCatching {
             inner.sendReadReceipt(receiptType.toRustReceiptType(), eventId.value)
         }
     }
@@ -190,13 +180,13 @@ class RustTimeline(
                 updatePaginationStatus(direction) { it.copy(isPaginating = true) }
                 when (direction) {
                     Timeline.PaginationDirection.BACKWARDS -> inner.paginateBackwards(PAGINATION_SIZE.toUShort())
-                    Timeline.PaginationDirection.FORWARDS -> inner.focusedPaginateForwards(PAGINATION_SIZE.toUShort())
+                    Timeline.PaginationDirection.FORWARDS -> inner.paginateForwards(PAGINATION_SIZE.toUShort())
                 }
             }.onFailure { error ->
-                updatePaginationStatus(direction) { it.copy(isPaginating = false) }
                 if (error is TimelineException.CannotPaginate) {
                     Timber.d("Can't paginate $direction on room ${matrixRoom.roomId} with paginationStatus: ${backPaginationStatus.value}")
                 } else {
+                    updatePaginationStatus(direction) { it.copy(isPaginating = false) }
                     Timber.e(error, "Error paginating $direction on room ${matrixRoom.roomId}")
                 }
             }.onSuccess { hasReachedEnd ->
@@ -206,7 +196,7 @@ class RustTimeline(
     }
 
     private fun canPaginate(direction: Timeline.PaginationDirection): Boolean {
-        if (!isInit.value) return false
+        if (!isTimelineInitialized.value) return false
         return when (direction) {
             Timeline.PaginationDirection.BACKWARDS -> backPaginationStatus.value.canPaginate
             Timeline.PaginationDirection.FORWARDS -> forwardPaginationStatus.value.canPaginate
@@ -222,26 +212,42 @@ class RustTimeline(
 
     override val timelineItems: Flow<List<MatrixTimelineItem>> = combine(
         _timelineItems,
-        backPaginationStatus.map { it.hasMoreToLoad }.distinctUntilChanged(),
-        forwardPaginationStatus.map { it.hasMoreToLoad }.distinctUntilChanged(),
-        isInit,
-    ) { timelineItems, hasMoreToLoadBackward, hasMoreToLoadForward, isInit ->
+        backPaginationStatus,
+        forwardPaginationStatus,
+        matrixRoom.roomInfoFlow.map { it.creator },
+        isTimelineInitialized,
+    ) { timelineItems,
+        backwardPaginationStatus,
+        forwardPaginationStatus,
+        roomCreator,
+        isTimelineInitialized ->
         withContext(dispatcher) {
             timelineItems
-                .process { items -> encryptedHistoryPostProcessor.process(items) }
-                .process { items ->
+                .let { items ->
                     roomBeginningPostProcessor.process(
                         items = items,
                         isDm = matrixRoom.isDm,
-                        hasMoreToLoadBackwards = hasMoreToLoadBackward
+                        roomCreator = roomCreator,
+                        hasMoreToLoadBackwards = backwardPaginationStatus.hasMoreToLoad,
                     )
                 }
-                .process(predicate = isInit) { items ->
-                    loadingIndicatorsPostProcessor.process(items, hasMoreToLoadBackward, hasMoreToLoadForward)
+                .let { items ->
+                    loadingIndicatorsPostProcessor.process(
+                        items = items,
+                        isTimelineInitialized = isTimelineInitialized,
+                        hasMoreToLoadBackward = backwardPaginationStatus.hasMoreToLoad,
+                        hasMoreToLoadForward = forwardPaginationStatus.hasMoreToLoad,
+                    )
+                }
+                .let { items ->
+                    typingNotificationPostProcessor.process(items = items)
                 }
                 // Keep lastForwardIndicatorsPostProcessor last
-                .process(predicate = isInit) { items ->
-                    lastForwardIndicatorsPostProcessor.process(items)
+                .let { items ->
+                    lastForwardIndicatorsPostProcessor.process(
+                        items = items,
+                        isTimelineInitialized = isTimelineInitialized,
+                    )
                 }
         }
     }.onStart {
@@ -276,31 +282,57 @@ class RustTimeline(
         }
     }
 
-    override suspend fun redactEvent(eventId: EventId?, transactionId: TransactionId?, reason: String?): Result<Boolean> = withContext(dispatcher) {
+    override suspend fun redactEvent(eventOrTransactionId: EventOrTransactionId, reason: String?): Result<Unit> = withContext(dispatcher) {
         runCatching {
-            getEventTimelineItem(eventId, transactionId).use { item ->
-                inner.redactEvent(item = item, reason = reason)
-            }
+            inner.redactEvent(
+                eventOrTransactionId = eventOrTransactionId.toRustEventOrTransactionId(),
+                reason = reason,
+            )
         }
     }
 
     override suspend fun editMessage(
-        originalEventId: EventId?,
-        transactionId: TransactionId?,
+        eventOrTransactionId: EventOrTransactionId,
         body: String,
         htmlBody: String?,
         intentionalMentions: List<IntentionalMention>,
-    ): Result<Unit> =
-        withContext(dispatcher) {
-            runCatching<Unit> {
-                getEventTimelineItem(originalEventId, transactionId).use { item ->
-                    inner.edit(
-                        newContent = MessageEventContent.from(body, htmlBody, intentionalMentions),
-                        item = item,
-                    )
-                }
+    ): Result<Unit> = withContext(dispatcher) {
+        runCatching {
+            val editedContent = EditedContent.RoomMessage(
+                content = MessageEventContent.from(
+                    body = body,
+                    htmlBody = htmlBody,
+                    intentionalMentions = intentionalMentions
+                ),
+            )
+            inner.edit(
+                newContent = editedContent,
+                eventOrTransactionId = eventOrTransactionId.toRustEventOrTransactionId(),
+            )
+        }
+    }
+
+    override suspend fun editCaption(
+        eventOrTransactionId: EventOrTransactionId,
+        caption: String?,
+        formattedCaption: String?,
+    ): Result<Unit> = withContext(dispatcher) {
+        runCatching<Unit> {
+            val editedContent = EditedContent.MediaCaption(
+                caption = caption,
+                formattedCaption = formattedCaption?.let {
+                    FormattedBody(body = it, format = MessageFormat.Html)
+                },
+                mentions = null,
+            )
+            withContext(Dispatchers.IO) {
+                inner.edit(
+                    newContent = editedContent,
+                    eventOrTransactionId = eventOrTransactionId.toRustEventOrTransactionId(),
+                )
             }
         }
+    }
 
     override suspend fun replyMessage(
         eventId: EventId,
@@ -319,35 +351,26 @@ class RustTimeline(
         file: File,
         thumbnailFile: File?,
         imageInfo: ImageInfo,
-        body: String?,
-        formattedBody: String?,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
     ): Result<MediaUploadHandler> {
+        val useSendQueue = featureFlagsService.isFeatureEnabled(FeatureFlags.MediaUploadOnSendQueue)
         return sendAttachment(listOfNotNull(file, thumbnailFile)) {
             inner.sendImage(
-                url = file.path,
-                thumbnailUrl = thumbnailFile?.path,
+                params = UploadParameters(
+                    filename = file.path,
+                    caption = caption,
+                    formattedCaption = formattedCaption?.let {
+                        FormattedBody(body = it, format = MessageFormat.Html)
+                    },
+                    useSendQueue = useSendQueue,
+                    mentions = null,
+                ),
+                thumbnailPath = thumbnailFile?.path,
                 imageInfo = imageInfo.map(),
-                caption = body,
-                formattedCaption = formattedBody?.let {
-                    FormattedBody(body = it, format = MessageFormat.Html)
-                },
                 progressWatcher = progressCallback?.toProgressWatcher()
             )
-        }
-    }
-
-    @Throws
-    private suspend fun getEventTimelineItem(eventId: EventId?, transactionId: TransactionId?): EventTimelineItem {
-        return try {
-            when {
-                eventId != null -> inner.getEventTimelineItemByEventId(eventId.value)
-                transactionId != null -> inner.getEventTimelineItemByTransactionId(transactionId.value)
-                else -> error("Either eventId or transactionId must be non-null")
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to get event timeline item")
-            throw TimelineException.EventNotFound
         }
     }
 
@@ -355,46 +378,85 @@ class RustTimeline(
         file: File,
         thumbnailFile: File?,
         videoInfo: VideoInfo,
-        body: String?,
-        formattedBody: String?,
+        caption: String?,
+        formattedCaption: String?,
         progressCallback: ProgressCallback?,
     ): Result<MediaUploadHandler> {
+        val useSendQueue = featureFlagsService.isFeatureEnabled(FeatureFlags.MediaUploadOnSendQueue)
         return sendAttachment(listOfNotNull(file, thumbnailFile)) {
             inner.sendVideo(
-                url = file.path,
-                thumbnailUrl = thumbnailFile?.path,
+                params = UploadParameters(
+                    filename = file.path,
+                    caption = caption,
+                    formattedCaption = formattedCaption?.let {
+                        FormattedBody(body = it, format = MessageFormat.Html)
+                    },
+                    useSendQueue = useSendQueue,
+                    mentions = null,
+                ),
+                thumbnailPath = thumbnailFile?.path,
                 videoInfo = videoInfo.map(),
-                caption = body,
-                formattedCaption = formattedBody?.let {
-                    FormattedBody(body = it, format = MessageFormat.Html)
-                },
                 progressWatcher = progressCallback?.toProgressWatcher()
             )
         }
     }
 
-    override suspend fun sendAudio(file: File, audioInfo: AudioInfo, progressCallback: ProgressCallback?): Result<MediaUploadHandler> {
+    override suspend fun sendAudio(
+        file: File,
+        audioInfo: AudioInfo,
+        caption: String?,
+        formattedCaption: String?,
+        progressCallback: ProgressCallback?,
+    ): Result<MediaUploadHandler> {
+        val useSendQueue = featureFlagsService.isFeatureEnabled(FeatureFlags.MediaUploadOnSendQueue)
         return sendAttachment(listOf(file)) {
             inner.sendAudio(
-                url = file.path,
+                params = UploadParameters(
+                    filename = file.path,
+                    caption = caption,
+                    formattedCaption = formattedCaption?.let {
+                        FormattedBody(body = it, format = MessageFormat.Html)
+                    },
+                    useSendQueue = useSendQueue,
+                    mentions = null,
+                ),
                 audioInfo = audioInfo.map(),
-                // Maybe allow a caption in the future?
-                caption = null,
-                formattedCaption = null,
                 progressWatcher = progressCallback?.toProgressWatcher()
             )
         }
     }
 
-    override suspend fun sendFile(file: File, fileInfo: FileInfo, progressCallback: ProgressCallback?): Result<MediaUploadHandler> {
+    override suspend fun sendFile(
+        file: File,
+        fileInfo: FileInfo,
+        caption: String?,
+        formattedCaption: String?,
+        progressCallback: ProgressCallback?,
+    ): Result<MediaUploadHandler> {
+        val useSendQueue = featureFlagsService.isFeatureEnabled(FeatureFlags.MediaUploadOnSendQueue)
         return sendAttachment(listOf(file)) {
-            inner.sendFile(file.path, fileInfo.map(), progressCallback?.toProgressWatcher())
+            inner.sendFile(
+                params = UploadParameters(
+                    filename = file.path,
+                    caption = caption,
+                    formattedCaption = formattedCaption?.let {
+                        FormattedBody(body = it, format = MessageFormat.Html)
+                    },
+                    useSendQueue = useSendQueue,
+                    mentions = null,
+                ),
+                fileInfo = fileInfo.map(),
+                progressWatcher = progressCallback?.toProgressWatcher(),
+            )
         }
     }
 
-    override suspend fun toggleReaction(emoji: String, uniqueId: UniqueId): Result<Unit> = withContext(dispatcher) {
+    override suspend fun toggleReaction(emoji: String, eventOrTransactionId: EventOrTransactionId): Result<Unit> = withContext(dispatcher) {
         runCatching {
-            inner.toggleReaction(key = emoji, uniqueId = uniqueId.value)
+            inner.toggleReaction(
+                key = emoji,
+                itemId = eventOrTransactionId.toRustEventOrTransactionId(),
+            )
         }
     }
 
@@ -405,8 +467,6 @@ class RustTimeline(
             Timber.e(it)
         }
     }
-
-    override suspend fun cancelSend(transactionId: TransactionId): Result<Boolean> = redactEvent(eventId = null, transactionId = transactionId, reason = null)
 
     override suspend fun sendLocation(
         body: String,
@@ -450,19 +510,18 @@ class RustTimeline(
         pollKind: PollKind,
     ): Result<Unit> = withContext(dispatcher) {
         runCatching {
-            val pollStartEvent =
-                inner.getEventTimelineItemByEventId(
-                    eventId = pollStartId.value
-                )
-            pollStartEvent.use {
-                inner.editPoll(
+            val editedContent = EditedContent.PollStart(
+                pollData = PollData(
                     question = question,
                     answers = answers,
                     maxSelections = maxSelections.toUByte(),
                     pollKind = pollKind.toInner(),
-                    editItem = pollStartEvent,
-                )
-            }
+                ),
+            )
+            inner.edit(
+                newContent = editedContent,
+                eventOrTransactionId = RustEventOrTransactionId.EventId(pollStartId.value),
+            )
         }
     }
 
@@ -472,7 +531,7 @@ class RustTimeline(
     ): Result<Unit> = withContext(dispatcher) {
         runCatching {
             inner.sendPollResponse(
-                pollStartId = pollStartId.value,
+                pollStartEventId = pollStartId.value,
                 answers = answers,
             )
         }
@@ -484,7 +543,7 @@ class RustTimeline(
     ): Result<Unit> = withContext(dispatcher) {
         runCatching {
             inner.endPoll(
-                pollStartId = pollStartId.value,
+                pollStartEventId = pollStartId.value,
                 text = text,
             )
         }
@@ -495,16 +554,23 @@ class RustTimeline(
         audioInfo: AudioInfo,
         waveform: List<Float>,
         progressCallback: ProgressCallback?,
-    ): Result<MediaUploadHandler> = sendAttachment(listOf(file)) {
-        inner.sendVoiceMessage(
-            url = file.path,
-            audioInfo = audioInfo.map(),
-            waveform = waveform.toMSC3246range(),
-            // Maybe allow a caption in the future?
-            caption = null,
-            formattedCaption = null,
-            progressWatcher = progressCallback?.toProgressWatcher(),
-        )
+    ): Result<MediaUploadHandler> {
+        val useSendQueue = featureFlagsService.isFeatureEnabled(FeatureFlags.MediaUploadOnSendQueue)
+        return sendAttachment(listOf(file)) {
+            inner.sendVoiceMessage(
+                params = UploadParameters(
+                    filename = file.path,
+                    // Maybe allow a caption in the future?
+                    caption = null,
+                    formattedCaption = null,
+                    useSendQueue = useSendQueue,
+                    mentions = null,
+                ),
+                audioInfo = audioInfo.map(),
+                waveform = waveform.toMSC3246range(),
+                progressWatcher = progressCallback?.toProgressWatcher(),
+            )
+        }
     }
 
     private fun sendAttachment(files: List<File>, handle: () -> SendAttachmentJoinHandle): Result<MediaUploadHandler> {
@@ -514,7 +580,7 @@ class RustTimeline(
     }
 
     override suspend fun loadReplyDetails(eventId: EventId): InReplyTo = withContext(dispatcher) {
-        val timelineItem = _timelineItems.value.firstOrNull { timelineItem ->
+        val timelineItem = _timelineItems.first().firstOrNull { timelineItem ->
             timelineItem is MatrixTimelineItem.Event && timelineItem.eventId == eventId
         } as? MatrixTimelineItem.Event
 
@@ -542,20 +608,9 @@ class RustTimeline(
         }
     }
 
-    private suspend fun fetchDetailsForEvent(eventId: EventId): Result<Unit> {
-        return runCatching {
+    private suspend fun fetchDetailsForEvent(eventId: EventId): Result<Unit> = withContext(dispatcher) {
+        runCatching {
             inner.fetchDetailsForEvent(eventId.value)
         }
-    }
-}
-
-private suspend fun List<MatrixTimelineItem>.process(
-    predicate: Boolean = true,
-    processor: suspend (List<MatrixTimelineItem>) -> List<MatrixTimelineItem>
-): List<MatrixTimelineItem> {
-    return if (predicate) {
-        processor(this)
-    } else {
-        this
     }
 }

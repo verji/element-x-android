@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomlist.impl.datasource
@@ -19,6 +10,7 @@ package io.element.android.features.roomlist.impl.datasource
 import io.element.android.features.roomlist.impl.model.RoomListRoomSummary
 import io.element.android.libraries.androidutils.diff.DiffCacheUpdater
 import io.element.android.libraries.androidutils.diff.MutableListDiffCache
+import io.element.android.libraries.androidutils.system.DateTimeObserver
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.notificationsettings.NotificationSettingsService
@@ -45,9 +37,11 @@ class RoomListDataSource @Inject constructor(
     private val coroutineDispatchers: CoroutineDispatchers,
     private val notificationSettingsService: NotificationSettingsService,
     private val appScope: CoroutineScope,
+    private val dateTimeObserver: DateTimeObserver,
 ) {
     init {
         observeNotificationSettings()
+        observeDateTimeChanges()
     }
 
     private val _allRooms = MutableSharedFlow<ImmutableList<RoomListRoomSummary>>(replay = 1)
@@ -86,6 +80,17 @@ class RoomListDataSource @Inject constructor(
             .launchIn(appScope)
     }
 
+    private fun observeDateTimeChanges() {
+        dateTimeObserver.changes
+            .onEach { event ->
+                when (event) {
+                    is DateTimeObserver.Event.TimeZoneChanged -> rebuildAllRoomSummaries()
+                    is DateTimeObserver.Event.DateChanged -> rebuildAllRoomSummaries()
+                }
+            }
+            .launchIn(appScope)
+    }
+
     private suspend fun replaceWith(roomSummaries: List<RoomSummary>) = withContext(coroutineDispatchers.computation) {
         lock.withLock {
             diffCacheUpdater.updateWith(roomSummaries)
@@ -93,9 +98,13 @@ class RoomListDataSource @Inject constructor(
         }
     }
 
-    private suspend fun buildAndEmitAllRooms(roomSummaries: List<RoomSummary>) {
+    private suspend fun buildAndEmitAllRooms(roomSummaries: List<RoomSummary>, useCache: Boolean = true) {
         val roomListRoomSummaries = diffCache.indices().mapNotNull { index ->
-            diffCache.get(index) ?: buildAndCacheItem(roomSummaries, index)
+            if (useCache) {
+                diffCache.get(index) ?: buildAndCacheItem(roomSummaries, index)
+            } else {
+                buildAndCacheItem(roomSummaries, index)
+            }
         }
         _allRooms.emit(roomListRoomSummaries.toImmutableList())
     }
@@ -104,5 +113,13 @@ class RoomListDataSource @Inject constructor(
         val roomListSummary = roomSummaries.getOrNull(index)?.let { roomListRoomSummaryFactory.create(it) }
         diffCache[index] = roomListSummary
         return roomListSummary
+    }
+
+    private suspend fun rebuildAllRoomSummaries() {
+        lock.withLock {
+            roomListService.allRooms.summaries.replayCache.firstOrNull()?.let { roomSummaries ->
+                buildAndEmitAllRooms(roomSummaries, useCache = false)
+            }
+        }
     }
 }

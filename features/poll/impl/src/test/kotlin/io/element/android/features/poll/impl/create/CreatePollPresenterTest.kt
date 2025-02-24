@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.poll.impl.create
@@ -29,10 +20,11 @@ import io.element.android.features.poll.impl.aPollTimelineItems
 import io.element.android.features.poll.impl.anOngoingPollContent
 import io.element.android.features.poll.impl.data.PollRepository
 import io.element.android.libraries.matrix.api.core.EventId
-import io.element.android.libraries.matrix.api.core.TransactionId
 import io.element.android.libraries.matrix.api.poll.PollKind
 import io.element.android.libraries.matrix.api.room.MatrixRoom
+import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
+import io.element.android.libraries.matrix.api.timeline.item.event.toEventOrTransactionId
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.room.FakeMatrixRoom
 import io.element.android.libraries.matrix.test.timeline.FakeTimeline
@@ -475,7 +467,7 @@ class CreatePollPresenterTest {
     @Test
     fun `delete confirms`() = runTest {
         val presenter = createCreatePollPresenter(mode = CreatePollMode.EditPoll(pollEventId))
-        val redactEventLambda = lambdaRecorder { _: EventId?, _: TransactionId?, _: String? -> Result.success(true) }
+        val redactEventLambda = lambdaRecorder { _: EventOrTransactionId, _: String? -> Result.success(Unit) }
         timeline.redactEventLambda = redactEventLambda
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
@@ -490,7 +482,7 @@ class CreatePollPresenterTest {
     @Test
     fun `delete can be cancelled`() = runTest {
         val presenter = createCreatePollPresenter(mode = CreatePollMode.EditPoll(pollEventId))
-        val redactEventLambda = lambdaRecorder { _: EventId?, _: TransactionId?, _: String? -> Result.success(true) }
+        val redactEventLambda = lambdaRecorder { _: EventOrTransactionId, _: String? -> Result.success(Unit) }
         timeline.redactEventLambda = redactEventLambda
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
@@ -508,7 +500,7 @@ class CreatePollPresenterTest {
     @Test
     fun `delete can be confirmed`() = runTest {
         val presenter = createCreatePollPresenter(mode = CreatePollMode.EditPoll(pollEventId))
-        val redactEventLambda = lambdaRecorder { _: EventId?, _: TransactionId?, _: String? -> Result.success(true) }
+        val redactEventLambda = lambdaRecorder { _: EventOrTransactionId, _: String? -> Result.success(Unit) }
         timeline.redactEventLambda = redactEventLambda
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
@@ -521,7 +513,7 @@ class CreatePollPresenterTest {
             }
             assert(redactEventLambda)
                 .isCalledOnce()
-                .with(value(pollEventId), value(null), any())
+                .with(value(pollEventId.toEventOrTransactionId()), any())
         }
     }
 

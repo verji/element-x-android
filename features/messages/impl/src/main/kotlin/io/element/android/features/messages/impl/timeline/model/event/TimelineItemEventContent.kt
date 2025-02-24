@@ -1,26 +1,40 @@
 /*
- * Copyright (c) 2022 New Vector Ltd
+ * Copyright 2022-2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.timeline.model.event
 
 import androidx.compose.runtime.Immutable
+import io.element.android.libraries.matrix.api.media.MediaSource
+import kotlin.time.Duration
 
 @Immutable
 sealed interface TimelineItemEventContent {
     val type: String
+}
+
+interface TimelineItemEventMutableContent {
+    /** Whether the event has been edited. */
+    val isEdited: Boolean
+}
+
+@Immutable
+sealed interface TimelineItemEventContentWithAttachment :
+    TimelineItemEventContent,
+    TimelineItemEventMutableContent {
+    val filename: String
+    val caption: String?
+    val formattedCaption: CharSequence?
+    val mediaSource: MediaSource
+    val mimeType: String
+    val formattedFileSize: String
+    val fileExtension: String
+
+    val bestDescription: String
+        get() = caption ?: filename
 }
 
 /**
@@ -73,9 +87,16 @@ fun TimelineItemEventContent.canReact(): Boolean =
 /**
  * Whether the event content has been edited.
  */
-fun TimelineItemEventContent.isEdited(): Boolean =
-    when (this) {
-        is TimelineItemTextBasedContent -> isEdited
-        is TimelineItemPollContent -> isEdited
-        else -> false
+fun TimelineItemEventContent.isEdited(): Boolean = when (this) {
+    is TimelineItemEventMutableContent -> isEdited
+    else -> false
+}
+
+fun TimelineItemEventContentWithAttachment.duration(): Duration? {
+    return when (this) {
+        is TimelineItemAudioContent -> duration
+        is TimelineItemVideoContent -> duration
+        is TimelineItemVoiceContent -> duration
+        else -> null
     }
+}

@@ -1,31 +1,25 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.createroom.impl.root
 
+import androidx.compose.runtime.MutableState
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.moleculeFlow
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.createroom.api.ConfirmingStartDmWithMatrixUser
 import io.element.android.features.createroom.api.StartDMAction
 import io.element.android.features.createroom.impl.userlist.FakeUserListPresenter
 import io.element.android.features.createroom.impl.userlist.FakeUserListPresenterFactory
 import io.element.android.features.createroom.impl.userlist.UserListDataStore
 import io.element.android.features.createroom.test.FakeStartDMAction
 import io.element.android.libraries.architecture.AsyncAction
+import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.test.A_ROOM_ID
@@ -33,6 +27,9 @@ import io.element.android.libraries.matrix.test.A_THROWABLE
 import io.element.android.libraries.matrix.test.core.aBuildMeta
 import io.element.android.libraries.usersearch.test.FakeUserRepository
 import io.element.android.tests.testutils.WarmUpRule
+import io.element.android.tests.testutils.lambda.any
+import io.element.android.tests.testutils.lambda.lambdaRecorder
+import io.element.android.tests.testutils.lambda.value
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -42,43 +39,127 @@ class CreateRoomRootPresenterTest {
     val warmUpRule = WarmUpRule()
 
     @Test
-    fun `present - start DM action complete scenario`() = runTest {
-        val startDMAction = FakeStartDMAction()
+    fun `present - start DM action failure scenario`() = runTest {
+        val startDMFailureResult = AsyncAction.Failure(A_THROWABLE)
+        val executeResult = lambdaRecorder<MatrixUser, Boolean, MutableState<AsyncAction<RoomId>>, Unit> { _, _, actionState ->
+            actionState.value = startDMFailureResult
+        }
+        val startDMAction = FakeStartDMAction(executeResult = executeResult)
         val presenter = createCreateRoomRootPresenter(startDMAction)
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
         }.test {
             val initialState = awaitItem()
-
             assertThat(initialState.startDmAction).isInstanceOf(AsyncAction.Uninitialized::class.java)
             assertThat(initialState.applicationName).isEqualTo(aBuildMeta().applicationName)
             assertThat(initialState.userListState.selectedUsers).isEmpty()
             assertThat(initialState.userListState.isSearchActive).isFalse()
             assertThat(initialState.userListState.isMultiSelectionEnabled).isFalse()
-
             val matrixUser = MatrixUser(UserId("@name:domain"))
-            val startDMSuccessResult = AsyncAction.Success(A_ROOM_ID)
-            val startDMFailureResult = AsyncAction.Failure(A_THROWABLE)
-
-            // Failure
-            startDMAction.givenExecuteResult(startDMFailureResult)
             initialState.eventSink(CreateRoomRootEvents.StartDM(matrixUser))
-            assertThat(awaitItem().startDmAction).isInstanceOf(AsyncAction.Loading::class.java)
             awaitItem().also { state ->
                 assertThat(state.startDmAction).isEqualTo(startDMFailureResult)
+                executeResult.assertions().isCalledOnce().with(
+                    value(matrixUser),
+                    value(false),
+                    any(),
+                )
                 state.eventSink(CreateRoomRootEvents.CancelStartDM)
             }
-
-            // Success
-            startDMAction.givenExecuteResult(startDMSuccessResult)
             awaitItem().also { state ->
-                assertThat(state.startDmAction).isEqualTo(AsyncAction.Uninitialized)
-                state.eventSink(CreateRoomRootEvents.StartDM(matrixUser))
+                assertThat(state.startDmAction.isUninitialized()).isTrue()
             }
-            assertThat(awaitItem().startDmAction).isInstanceOf(AsyncAction.Loading::class.java)
+        }
+    }
+
+    @Test
+    fun `present - start DM action success scenario`() = runTest {
+        val startDMSuccessResult = AsyncAction.Success(A_ROOM_ID)
+        val executeResult = lambdaRecorder<MatrixUser, Boolean, MutableState<AsyncAction<RoomId>>, Unit> { _, _, actionState ->
+            actionState.value = startDMSuccessResult
+        }
+        val startDMAction = FakeStartDMAction(executeResult = executeResult)
+        val presenter = createCreateRoomRootPresenter(startDMAction)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            assertThat(initialState.startDmAction).isInstanceOf(AsyncAction.Uninitialized::class.java)
+            assertThat(initialState.applicationName).isEqualTo(aBuildMeta().applicationName)
+            assertThat(initialState.userListState.selectedUsers).isEmpty()
+            assertThat(initialState.userListState.isSearchActive).isFalse()
+            assertThat(initialState.userListState.isMultiSelectionEnabled).isFalse()
+            val matrixUser = MatrixUser(UserId("@name:domain"))
+            initialState.eventSink(CreateRoomRootEvents.StartDM(matrixUser))
             awaitItem().also { state ->
                 assertThat(state.startDmAction).isEqualTo(startDMSuccessResult)
+                executeResult.assertions().isCalledOnce().with(
+                    value(matrixUser),
+                    value(false),
+                    any(),
+                )
             }
+        }
+    }
+
+    @Test
+    fun `present - start DM action confirmation scenario - cancel`() = runTest {
+        val matrixUser = MatrixUser(UserId("@name:domain"))
+        val startDMConfirmationResult = ConfirmingStartDmWithMatrixUser(matrixUser)
+        val executeResult = lambdaRecorder<MatrixUser, Boolean, MutableState<AsyncAction<RoomId>>, Unit> { _, _, actionState ->
+            actionState.value = startDMConfirmationResult
+        }
+        val startDMAction = FakeStartDMAction(executeResult = executeResult)
+        val presenter = createCreateRoomRootPresenter(startDMAction)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            assertThat(initialState.startDmAction).isInstanceOf(AsyncAction.Uninitialized::class.java)
+            initialState.eventSink(CreateRoomRootEvents.StartDM(matrixUser))
+            val confirmingState = awaitItem()
+            assertThat(confirmingState.startDmAction).isEqualTo(startDMConfirmationResult)
+            executeResult.assertions().isCalledOnce().with(
+                value(matrixUser),
+                value(false),
+                any(),
+            )
+            // Cancelling should not create the DM
+            confirmingState.eventSink(CreateRoomRootEvents.CancelStartDM)
+            val finalState = awaitItem()
+            assertThat(finalState.startDmAction.isUninitialized()).isTrue()
+            executeResult.assertions().isCalledExactly(1)
+        }
+    }
+
+    @Test
+    fun `present - start DM action confirmation scenario - confirm`() = runTest {
+        val matrixUser = MatrixUser(UserId("@name:domain"))
+        val startDMConfirmationResult = ConfirmingStartDmWithMatrixUser(matrixUser)
+        val executeResult = lambdaRecorder<MatrixUser, Boolean, MutableState<AsyncAction<RoomId>>, Unit> { _, _, actionState ->
+            actionState.value = startDMConfirmationResult
+        }
+        val startDMAction = FakeStartDMAction(executeResult = executeResult)
+        val presenter = createCreateRoomRootPresenter(startDMAction)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            assertThat(initialState.startDmAction).isInstanceOf(AsyncAction.Uninitialized::class.java)
+            initialState.eventSink(CreateRoomRootEvents.StartDM(matrixUser))
+            val confirmingState = awaitItem()
+            assertThat(confirmingState.startDmAction).isEqualTo(startDMConfirmationResult)
+            executeResult.assertions().isCalledOnce().with(
+                value(matrixUser),
+                value(false),
+                any(),
+            )
+            // Start DM again should invoke the action with createIfDmDoesNotExist = true
+            confirmingState.eventSink(CreateRoomRootEvents.StartDM(matrixUser))
+            executeResult.assertions().isCalledExactly(2).withSequence(
+                listOf(value(matrixUser), value(false), any()),
+                listOf(value(matrixUser), value(true), any()),
+            )
         }
     }
 

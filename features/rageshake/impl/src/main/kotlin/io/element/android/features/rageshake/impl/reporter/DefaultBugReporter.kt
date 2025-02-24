@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.rageshake.impl.reporter
@@ -88,7 +79,7 @@ class DefaultBugReporter @Inject constructor(
     }
 
     private val logcatCommandDebug = arrayOf("logcat", "-d", "-v", "threadtime", "*:*")
-    private var currentTracingFilter: String? = null
+    private var currentTracingLogLevel: String? = null
 
     private val logCatErrFile = File(logDirectory().absolutePath, LOG_CAT_FILENAME)
 
@@ -123,7 +114,6 @@ class DefaultBugReporter @Inject constructor(
                             else -> compressFile(file)
                         }
                     }
-                    files.deleteAllExceptMostRecent()
                 }
                 if (withCrashLogs || withDevicesLogs) {
                     saveLogCat()
@@ -166,8 +156,8 @@ class DefaultBugReporter @Inject constructor(
                 if (crashCallStack.isNotEmpty() && withCrashLogs) {
                     builder.addFormDataPart("label", "crash")
                 }
-                currentTracingFilter?.let {
-                    builder.addFormDataPart("tracing_filter", it)
+                currentTracingLogLevel?.let {
+                    builder.addFormDataPart("tracing_log_level", it)
                 }
                 if (buildMeta.isEnterpriseBuild) {
                     builder.addFormDataPart("label", "Enterprise")
@@ -301,14 +291,16 @@ class DefaultBugReporter @Inject constructor(
         }
     }
 
-    suspend fun deleteAllFiles() {
+    suspend fun deleteAllFiles(predicate: (File) -> Boolean) {
         withContext(coroutineDispatchers.io) {
-            getLogFiles().forEach { it.safeDelete() }
+            getLogFiles()
+                .filter(predicate)
+                .forEach { it.safeDelete() }
         }
     }
 
-    override fun setCurrentTracingFilter(tracingFilter: String) {
-        currentTracingFilter = tracingFilter
+    override fun setCurrentTracingLogLevel(logLevel: String) {
+        currentTracingLogLevel = logLevel
     }
 
     /**
@@ -321,20 +313,6 @@ class DefaultBugReporter @Inject constructor(
             val logDirectory = logDirectory()
             logDirectory.listFiles()?.toList()
         }.orEmpty()
-    }
-
-    /**
-     * Delete all the log files except the most recent one.
-     */
-    private fun List<File>.deleteAllExceptMostRecent() {
-        if (size > 1) {
-            val mostRecentFile = maxByOrNull { it.lastModified() }
-            forEach { file ->
-                if (file != mostRecentFile) {
-                    file.safeDelete()
-                }
-            }
-        }
     }
 
     // ==============================================================================================================

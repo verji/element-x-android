@@ -21,6 +21,7 @@
   <string name="screen_change_server_form_notice">"Csak olyan meglévő kiszolgálóhoz csatlakozhat, amely támogatja a Sliding sync protokollt. Ezt a Matrix-kiszolgáló adminisztrátorának kell beállítania. %1$s"</string>
   <string name="screen_change_server_subtitle">"Mi a kiszolgálója címe?"</string>
   <string name="screen_change_server_title">"Válassza ki a kiszolgálóját"</string>
+  <string name="screen_create_account_title">"Fiók létrehozása"</string>
   <string name="screen_login_error_deactivated_account">"Ez a fiók deaktiválva lett."</string>
   <string name="screen_login_error_invalid_credentials">"Helytelen felhasználónév vagy jelszó"</string>
   <string name="screen_login_error_invalid_user_id">"Ez nem érvényes felhasználóazonosító. A várt formátum: „@user:homeserver.org”"</string>
@@ -39,15 +40,15 @@
   <string name="screen_qr_code_login_connection_note_secure_state_title">"A kapcsolat nem biztonságos"</string>
   <string name="screen_qr_code_login_device_code_subtitle">"A rendszer kérni fogja, hogy adja meg az alábbi két számjegyet az eszközén."</string>
   <string name="screen_qr_code_login_device_code_title">"Adja meg az alábbi számot a másik eszközén"</string>
-  <string name="screen_qr_code_login_device_not_signed_in_scan_state_description">"Jelentkezzen be a másik eszközére, majd próbálja újra, vagy használjon egy másik eszközt, amelyre már bejelentkezett."</string>
+  <string name="screen_qr_code_login_device_not_signed_in_scan_state_description">"Jelentkezzen be másik eszközére, majd próbálkozzon újra, vagy használjon egy másik, már bejelentkezett eszközt."</string>
   <string name="screen_qr_code_login_device_not_signed_in_scan_state_subtitle">"Más eszköz nincs bejelentkezve"</string>
-  <string name="screen_qr_code_login_error_cancelled_subtitle">"A bejelentkezés megszakadt a másik eszközön."</string>
+  <string name="screen_qr_code_login_error_cancelled_subtitle">"A bejelentkezést megszakították a másik eszközön."</string>
   <string name="screen_qr_code_login_error_cancelled_title">"Bejelentkezési kérés törölve"</string>
-  <string name="screen_qr_code_login_error_declined_subtitle">"A bejelentkezés el lett utasítva a másik eszközön."</string>
+  <string name="screen_qr_code_login_error_declined_subtitle">"A bejelentkezést elutasították a másik eszközön."</string>
   <string name="screen_qr_code_login_error_declined_title">"A bejelentkezés elutasítva"</string>
   <string name="screen_qr_code_login_error_expired_subtitle">"A bejelentkezés lejárt. Próbálja újra."</string>
   <string name="screen_qr_code_login_error_expired_title">"A bejelentkezés nem fejeződött be időben"</string>
-  <string name="screen_qr_code_login_error_linking_not_suported_subtitle">"A másik eszköz nem támogatja a %s QR-kóddal történő bejelentkezést.
+  <string name="screen_qr_code_login_error_linking_not_suported_subtitle">"A másik eszköz nem támogatja QR-kóddal történő bejelentkezést az %sbe.
 
 Próbáljon meg kézileg bejelentkezni, vagy olvassa be a QR-kódot egy másik eszközzel."</string>
   <string name="screen_qr_code_login_error_linking_not_suported_title">"A QR-kód nem támogatott"</string>
@@ -59,6 +60,7 @@ Próbáljon meg kézileg bejelentkezni, vagy olvassa be a QR-kódot egy másik e
   <string name="screen_qr_code_login_initial_state_item_3">"Válassza ezt: %1$s"</string>
   <string name="screen_qr_code_login_initial_state_item_3_action">"„Új eszköz összekapcsolása”"</string>
   <string name="screen_qr_code_login_initial_state_item_4">"Olvassa be a QR-kódot ezzel az eszközzel"</string>
+  <string name="screen_qr_code_login_initial_state_subtitle">"Csak akkor érhető el, ha a fiókszolgáltató támogatja."</string>
   <string name="screen_qr_code_login_initial_state_title">"Nyissa meg az %1$set egy másik eszközön a QR-kód lekéréséhez."</string>
   <string name="screen_qr_code_login_invalid_scan_state_description">"Használja a másik eszközön látható QR-kódot."</string>
   <string name="screen_qr_code_login_invalid_scan_state_retry_button">"Próbálja újra"</string>
@@ -78,10 +80,4 @@ Próbáljon meg kézileg bejelentkezni, vagy olvassa be a QR-kódot egy másik e
   <string name="screen_server_confirmation_message_register">"Itt lesznek a beszélgetései – ahogyan egy e-mail-szolgáltatást is használna a levelei kezeléséhez."</string>
   <string name="screen_server_confirmation_title_login">"Hamarosan bejelentkezik ebbe: %1$s"</string>
   <string name="screen_server_confirmation_title_register">"Hamarosan létrehoz egy fiókot ezen: %1$s"</string>
-  <string name="screen_waitlist_message">"Jelenleg nagy a kereslet a(z) %2$s oldalon futó %1$s iránt. Térjen vissza néhány nap múlva az alkalmazáshoz, és próbálja újra.
-
-Köszönjük a türelmét!"</string>
-  <string name="screen_waitlist_message_success">"Üdvözli az %1$s!"</string>
-  <string name="screen_waitlist_title">"Már majdnem kész van."</string>
-  <string name="screen_waitlist_title_success">"Bent van."</string>
 </resources>

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.call.impl.ui
@@ -48,6 +39,7 @@ import io.element.android.libraries.matrix.api.sync.SyncState
 import io.element.android.libraries.matrix.api.widget.MatrixWidgetDriver
 import io.element.android.libraries.network.useragent.UserAgentProvider
 import io.element.android.services.analytics.api.ScreenTracker
+import io.element.android.services.appnavstate.api.AppForegroundStateService
 import io.element.android.services.toolbox.api.systemclock.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.launchIn
@@ -67,9 +59,9 @@ class CallScreenPresenter @AssistedInject constructor(
     private val dispatchers: CoroutineDispatchers,
     private val matrixClientsProvider: MatrixClientProvider,
     private val screenTracker: ScreenTracker,
-    private val appCoroutineScope: CoroutineScope,
     private val activeCallManager: ActiveCallManager,
     private val languageTagProvider: LanguageTagProvider,
+    private val appForegroundStateService: AppForegroundStateService,
 ) : Presenter<CallScreenState> {
     @AssistedFactory
     interface Factory {
@@ -87,6 +79,8 @@ class CallScreenPresenter @AssistedInject constructor(
         val callWidgetDriver = remember { mutableStateOf<MatrixWidgetDriver?>(null) }
         val messageInterceptor = remember { mutableStateOf<WidgetMessageInterceptor?>(null) }
         var isJoinedCall by rememberSaveable { mutableStateOf(false) }
+        var ignoreWebViewError by rememberSaveable { mutableStateOf(false) }
+        var webViewError by remember { mutableStateOf<String?>(null) }
         val languageTag = languageTagProvider.provideLanguageTag()
         val theme = if (ElementTheme.isLightTheme) "light" else "dark"
         DisposableEffect(Unit) {
@@ -134,6 +128,8 @@ class CallScreenPresenter @AssistedInject constructor(
             LaunchedEffect(Unit) {
                 interceptor.interceptedMessages
                     .onEach {
+                        // We are receiving messages from the WebView, consider that the application is loaded
+                        ignoreWebViewError = true
                         // Relay message to Widget Driver
                         callWidgetDriver.value?.send(it)
 
@@ -172,12 +168,20 @@ class CallScreenPresenter @AssistedInject constructor(
                 is CallScreenEvents.SetupMessageChannels -> {
                     messageInterceptor.value = event.widgetMessageInterceptor
                 }
+                is CallScreenEvents.OnWebViewError -> {
+                    if (!ignoreWebViewError) {
+                        webViewError = event.description.orEmpty()
+                    }
+                    // Else ignore the error, give a chance the Element Call to recover by itself.
+                }
             }
         }
 
         return CallScreenState(
             urlState = urlState.value,
+            webViewError = webViewError,
             userAgent = userAgent,
+            isCallActive = isJoinedCall,
             isInWidgetMode = isInWidgetMode,
             eventSink = { handleEvents(it) },
         )
@@ -223,19 +227,13 @@ class CallScreenPresenter @AssistedInject constructor(
                         if (state == SyncState.Running) {
                             client.notifyCallStartIfNeeded(callType.roomId)
                         } else {
-                            client.syncService().startSync()
+                            appForegroundStateService.updateIsInCallState(true)
                         }
                     }
             }
             onDispose {
-                // We can't use the local coroutine scope here because it will be disposed before this effect
-                appCoroutineScope.launch {
-                    client.syncService().run {
-                        if (syncState.value == SyncState.Running) {
-                            stopSync()
-                        }
-                    }
-                }
+                // Make sure we mark the call as ended in the app state
+                appForegroundStateService.updateIsInCallState(false)
             }
         }
     }

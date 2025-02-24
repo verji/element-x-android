@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.preferences.impl.notifications
@@ -23,11 +14,8 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingPresenter
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingStateEvents
 import io.element.android.libraries.matrix.api.room.RoomNotificationMode
-import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_THROWABLE
-import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.notificationsettings.FakeNotificationSettingsService
-import io.element.android.libraries.matrix.test.room.FakeMatrixRoom
 import io.element.android.libraries.matrix.test.room.aRoomSummary
 import io.element.android.libraries.matrix.test.roomlist.FakeRoomListService
 import io.element.android.tests.testutils.awaitLastSequentialItem
@@ -58,24 +46,20 @@ class EditDefaultNotificationSettingsPresenterTest {
 
     @Test
     fun `present - ensure list of rooms with user defined mode`() = runTest {
-        val room = FakeMatrixRoom()
         val notificationSettingsService = FakeNotificationSettingsService(
             initialRoomMode = RoomNotificationMode.ALL_MESSAGES,
             initialRoomModeIsDefault = false
         )
-        val matrixClient = FakeMatrixClient(notificationSettingsService = notificationSettingsService).apply {
-            givenGetRoomResult(A_ROOM_ID, room)
-        }
         val roomListService = FakeRoomListService()
-        val presenter = createEditDefaultNotificationSettingPresenter(notificationSettingsService, roomListService, matrixClient)
+        val presenter = createEditDefaultNotificationSettingPresenter(notificationSettingsService, roomListService)
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
         }.test {
-            roomListService.postAllRooms(listOf(aRoomSummary(notificationMode = RoomNotificationMode.ALL_MESSAGES)))
+            roomListService.postAllRooms(listOf(aRoomSummary(userDefinedNotificationMode = RoomNotificationMode.ALL_MESSAGES)))
             val loadedState = consumeItemsUntilPredicate { state ->
-                state.roomsWithUserDefinedMode.any { it.userDefinedNotificationMode == RoomNotificationMode.ALL_MESSAGES }
+                state.roomsWithUserDefinedMode.any { it.notificationMode == RoomNotificationMode.ALL_MESSAGES }
             }.last()
-            assertThat(loadedState.roomsWithUserDefinedMode.any { it.userDefinedNotificationMode == RoomNotificationMode.ALL_MESSAGES }).isTrue()
+            assertThat(loadedState.roomsWithUserDefinedMode.any { it.notificationMode == RoomNotificationMode.ALL_MESSAGES }).isTrue()
         }
     }
 
@@ -130,13 +114,11 @@ class EditDefaultNotificationSettingsPresenterTest {
     private fun createEditDefaultNotificationSettingPresenter(
         notificationSettingsService: FakeNotificationSettingsService = FakeNotificationSettingsService(),
         roomListService: FakeRoomListService = FakeRoomListService(),
-        matrixClient: FakeMatrixClient = FakeMatrixClient(notificationSettingsService = notificationSettingsService)
     ): EditDefaultNotificationSettingPresenter {
         return EditDefaultNotificationSettingPresenter(
             notificationSettingsService = notificationSettingsService,
             isOneToOne = false,
             roomListService = roomListService,
-            matrixClient = matrixClient
         )
     }
 }

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.pushproviders.unifiedpush
@@ -23,7 +14,11 @@ import io.element.android.libraries.pushproviders.unifiedpush.network.DiscoveryU
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
+import java.net.HttpURLConnection
 
 internal val matrixDiscoveryResponse = {
     DiscoveryResponse(
@@ -52,7 +47,7 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("https://custom.url")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("https://custom.url")
-        assertThat(result).isEqualTo("https://custom.url/_matrix/push/v1/notify")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.Success("https://custom.url/_matrix/push/v1/notify"))
     }
 
     @Test
@@ -65,7 +60,7 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("https://custom.url:123")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("https://custom.url:123")
-        assertThat(result).isEqualTo("https://custom.url:123/_matrix/push/v1/notify")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.Success("https://custom.url:123/_matrix/push/v1/notify"))
     }
 
     @Test
@@ -78,7 +73,7 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("https://custom.url:123/some/path")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("https://custom.url:123")
-        assertThat(result).isEqualTo("https://custom.url:123/_matrix/push/v1/notify")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.Success("https://custom.url:123/_matrix/push/v1/notify"))
     }
 
     @Test
@@ -91,7 +86,7 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("http://custom.url:123/some/path")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("http://custom.url:123")
-        assertThat(result).isEqualTo("http://custom.url:123/_matrix/push/v1/notify")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.Success("http://custom.url:123/_matrix/push/v1/notify"))
     }
 
     @Test
@@ -104,11 +99,41 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("http://custom.url")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("http://custom.url")
-        assertThat(result).isEqualTo("http://custom.url/_matrix/push/v1/notify")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.Error("http://custom.url/_matrix/push/v1/notify"))
     }
 
     @Test
-    fun `when a custom url is invalid, the default url is returned`() = runTest {
+    fun `when a custom url is not found (404), NoMatrixGateway is returned`() = runTest {
+        val unifiedPushApiFactory = FakeUnifiedPushApiFactory(
+            discoveryResponse = {
+                throw HttpException(Response.error<Unit>(HttpURLConnection.HTTP_NOT_FOUND, "".toResponseBody()))
+            }
+        )
+        val sut = createDefaultUnifiedPushGatewayResolver(
+            unifiedPushApiFactory = unifiedPushApiFactory
+        )
+        val result = sut.getGateway("http://custom.url")
+        assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("http://custom.url")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.NoMatrixGateway)
+    }
+
+    @Test
+    fun `when a custom url is forbidden (403), Error is returned`() = runTest {
+        val unifiedPushApiFactory = FakeUnifiedPushApiFactory(
+            discoveryResponse = {
+                throw HttpException(Response.error<Unit>(HttpURLConnection.HTTP_FORBIDDEN, "".toResponseBody()))
+            }
+        )
+        val sut = createDefaultUnifiedPushGatewayResolver(
+            unifiedPushApiFactory = unifiedPushApiFactory
+        )
+        val result = sut.getGateway("http://custom.url")
+        assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("http://custom.url")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.Error("http://custom.url/_matrix/push/v1/notify"))
+    }
+
+    @Test
+    fun `when a custom url is invalid, ErrorInvalidUrl is returned`() = runTest {
         val unifiedPushApiFactory = FakeUnifiedPushApiFactory(
             discoveryResponse = matrixDiscoveryResponse
         )
@@ -117,11 +142,11 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("invalid")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isNull()
-        assertThat(result).isEqualTo(UnifiedPushConfig.DEFAULT_PUSH_GATEWAY_HTTP_URL)
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.ErrorInvalidUrl)
     }
 
     @Test
-    fun `when a custom url provides a invalid matrix gateway, the custom url is still returned`() = runTest {
+    fun `when a custom url provides a invalid matrix gateway, NoMatrixGateway is returned`() = runTest {
         val unifiedPushApiFactory = FakeUnifiedPushApiFactory(
             discoveryResponse = invalidDiscoveryResponse
         )
@@ -130,7 +155,7 @@ class DefaultUnifiedPushGatewayResolverTest {
         )
         val result = sut.getGateway("https://custom.url")
         assertThat(unifiedPushApiFactory.baseUrlParameter).isEqualTo("https://custom.url")
-        assertThat(result).isEqualTo("https://custom.url/_matrix/push/v1/notify")
+        assertThat(result).isEqualTo(UnifiedPushGatewayResolverResult.NoMatrixGateway)
     }
 
     private fun TestScope.createDefaultUnifiedPushGatewayResolver(

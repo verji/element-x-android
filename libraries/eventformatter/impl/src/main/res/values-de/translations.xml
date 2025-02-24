@@ -28,7 +28,7 @@
   <string name="state_event_room_invite_you">"%1$s hat dich eingeladen"</string>
   <string name="state_event_room_join">"%1$s hat den Raum betreten"</string>
   <string name="state_event_room_join_by_you">"Du hast den Raum betreten"</string>
-  <string name="state_event_room_knock">"%1$s hat angefragt beizutreten"</string>
+  <string name="state_event_room_knock">"%1$s beantragt den Beitritt"</string>
   <string name="state_event_room_knock_accepted">"%1$s hat %2$s den Beitritt erlaubt"</string>
   <string name="state_event_room_knock_accepted_by_you">"Du hast %1$s den Beitritt erlaubt."</string>
   <string name="state_event_room_knock_by_you">"Du hast angefragt beizutreten"</string>
@@ -45,6 +45,12 @@
   <string name="state_event_room_name_removed_by_you">"Du hast den Raum-Namen entfernt"</string>
   <string name="state_event_room_none">"%1$shat keine Änderungen vorgenommen"</string>
   <string name="state_event_room_none_by_you">"Du hast keine Änderungen vorgenommen"</string>
+  <string name="state_event_room_pinned_events_changed">"%1$s hat die fixierten Nachrichten geändert"</string>
+  <string name="state_event_room_pinned_events_changed_by_you">"Du hast die fixierten Nachrichten geändert"</string>
+  <string name="state_event_room_pinned_events_pinned">"%1$s fixierte eine Nachricht"</string>
+  <string name="state_event_room_pinned_events_pinned_by_you">"Du hast eine Nachricht fixiert"</string>
+  <string name="state_event_room_pinned_events_unpinned">"%1$s löste eine Nachricht"</string>
+  <string name="state_event_room_pinned_events_unpinned_by_you">"Du hast eine Nachricht gelöst"</string>
   <string name="state_event_room_reject">"%1$s hat die Einladung abgelehnt"</string>
   <string name="state_event_room_reject_by_you">"Du hast die Einladung abgelehnt"</string>
   <string name="state_event_room_remove">"%1$s hat %2$s entfernt"</string>

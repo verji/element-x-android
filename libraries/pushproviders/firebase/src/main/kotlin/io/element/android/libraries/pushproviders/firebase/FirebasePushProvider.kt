@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.pushproviders.firebase
@@ -20,6 +11,7 @@ import com.squareup.anvil.annotations.ContributesMultibinding
 import io.element.android.libraries.core.log.logger.LoggerTag
 import io.element.android.libraries.di.AppScope
 import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.pushproviders.api.CurrentUserPushConfig
 import io.element.android.libraries.pushproviders.api.Distributor
 import io.element.android.libraries.pushproviders.api.PushProvider
@@ -34,6 +26,7 @@ class FirebasePushProvider @Inject constructor(
     private val firebaseStore: FirebaseStore,
     private val pusherSubscriber: PusherSubscriber,
     private val isPlayServiceAvailable: IsPlayServiceAvailable,
+    private val firebaseTokenRotator: FirebaseTokenRotator,
 ) : PushProvider {
     override val index = FirebaseConfig.INDEX
     override val name = FirebaseConfig.NAME
@@ -59,7 +52,7 @@ class FirebasePushProvider @Inject constructor(
         )
     }
 
-    override suspend fun getCurrentDistributor(matrixClient: MatrixClient) = firebaseDistributor
+    override suspend fun getCurrentDistributor(sessionId: SessionId) = firebaseDistributor
 
     override suspend fun unregister(matrixClient: MatrixClient): Result<Unit> {
         val pushKey = firebaseStore.getFcmToken()
@@ -71,6 +64,11 @@ class FirebasePushProvider @Inject constructor(
         }
     }
 
+    /**
+     * Nothing to clean up here.
+     */
+    override suspend fun onSessionDeleted(sessionId: SessionId) = Unit
+
     override suspend fun getCurrentUserPushConfig(): CurrentUserPushConfig? {
         return firebaseStore.getFcmToken()?.let { fcmToken ->
             CurrentUserPushConfig(
@@ -78,6 +76,12 @@ class FirebasePushProvider @Inject constructor(
                 pushKey = fcmToken
             )
         }
+    }
+
+    override fun canRotateToken(): Boolean = true
+
+    override suspend fun rotateToken(): Result<Unit> {
+        return firebaseTokenRotator.rotate()
     }
 
     companion object {

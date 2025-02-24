@@ -1,20 +1,9 @@
 #!/usr/bin/env bash
 
+# Copyright 2023-2024 New Vector Ltd.
 #
-# Copyright (c) 2023 New Vector Ltd
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+# Please see LICENSE files in the repository root for full details.
 
 # do not exit when any command fails (issue with git flow)
 set +e
@@ -105,19 +94,29 @@ git pull
 printf "\n================================================================================\n"
 # Guessing version to propose a default version
 versionsFile="./plugins/src/main/kotlin/Versions.kt"
-versionMajorCandidate=$(grep "val versionMajor" ${versionsFile} | cut  -d " " -f6)
-versionMinorCandidate=$(grep "val versionMinor" ${versionsFile} | cut  -d " " -f6)
-versionPatchCandidate=$(grep "val versionPatch" ${versionsFile} | cut  -d " " -f6)
-versionCandidate="${versionMajorCandidate}.${versionMinorCandidate}.${versionPatchCandidate}"
+# Get current year on 2 digits
+versionYearCandidate=$(date +%y)
+currentVersionMonth=$(grep "val versionMonth" ${versionsFile} | cut  -d " " -f6)
+# Get current month on 2 digits
+versionMonthCandidate=$(date +%m)
+versionMonthCandidateNoLeadingZero=$(echo ${versionMonthCandidate} | sed 's/^0//')
+currentVersionReleaseNumber=$(grep "val versionReleaseNumber" ${versionsFile} | cut  -d " " -f6)
+# if the current month is the same as the current version, we increment the release number, else we reset it to 0
+if [[ ${currentVersionMonth} -eq ${versionMonthCandidateNoLeadingZero} ]]; then
+  versionReleaseNumberCandidate=$((currentVersionReleaseNumber + 1))
+else
+  versionReleaseNumberCandidate=0
+fi
+versionCandidate="${versionYearCandidate}.${versionMonthCandidate}.${versionReleaseNumberCandidate}"
 
-read -p "Please enter the release version (example: ${versionCandidate}). Just press enter if ${versionCandidate} is correct. " version
+read -p "Please enter the release version (example: ${versionCandidate}). Format must be 'YY.MM.x' or 'YY.MM.xy'. Just press enter if ${versionCandidate} is correct. " version
 version=${version:-${versionCandidate}}
 
-# extract major, minor and patch for future use
-versionMajor=$(echo "${version}" | cut  -d "." -f1)
-versionMinor=$(echo "${version}" | cut  -d "." -f2)
-versionPatch=$(echo "${version}" | cut  -d "." -f3)
-nextPatchVersion=$((versionPatch + 1))
+# extract year, month and release number for future use
+versionYear=$(echo "${version}" | cut  -d "." -f1)
+versionMonth=$(echo "${version}" | cut  -d "." -f2)
+versionMonthNoLeadingZero=$(echo ${versionMonth} | sed 's/^0//')
+versionReleaseNumber=$(echo "${version}" | cut  -d "." -f3)
 
 printf "\n================================================================================\n"
 printf "Starting the release ${version}\n"
@@ -133,20 +132,17 @@ fi
 # Ensure version is OK
 versionsFileBak="${versionsFile}.bak"
 cp ${versionsFile} ${versionsFileBak}
-sed "s/private const val versionMajor = .*/private const val versionMajor = ${versionMajor}/" ${versionsFileBak} > ${versionsFile}
-sed "s/private const val versionMinor = .*/private const val versionMinor = ${versionMinor}/" ${versionsFile}    > ${versionsFileBak}
-sed "s/private const val versionPatch = .*/private const val versionPatch = ${versionPatch}/" ${versionsFileBak} > ${versionsFile}
+sed "s/private const val versionYear = .*/private const val versionYear = ${versionYear}/" ${versionsFileBak} > ${versionsFile}
+sed "s/private const val versionMonth = .*/private const val versionMonth = ${versionMonthNoLeadingZero}/" ${versionsFile}    > ${versionsFileBak}
+sed "s/private const val versionReleaseNumber = .*/private const val versionReleaseNumber = ${versionReleaseNumber}/" ${versionsFileBak} > ${versionsFile}
 rm ${versionsFileBak}
 
-# This commit may have no effect because generally we do not change the version during the release.
 git commit -a -m "Setting version for the release ${version}"
 
 printf "\n================================================================================\n"
 printf "Creating fastlane file...\n"
-printf -v versionMajor2Digits "%02d" "${versionMajor}"
-printf -v versionMinor2Digits "%02d" "${versionMinor}"
-printf -v versionPatch2Digits "%02d" "${versionPatch}"
-fastlaneFile="4${versionMajor2Digits}${versionMinor2Digits}${versionPatch2Digits}0.txt"
+printf -v versionReleaseNumber2Digits "%02d" "${versionReleaseNumber}"
+fastlaneFile="20${versionYear}${versionMonth}${versionReleaseNumber2Digits}0.txt"
 fastlanePathFile="./fastlane/metadata/android/en-US/changelogs/${fastlaneFile}"
 printf "Main changes in this version: TODO.\nFull changelog: https://github.com/element-hq/element-x-android/releases" > "${fastlanePathFile}"
 
@@ -174,33 +170,32 @@ printf "\n======================================================================
 printf "Checking out develop...\n"
 git checkout develop
 
-# Set next version
 printf "\n================================================================================\n"
-printf "Setting next version on file '${versionsFile}'...\n"
-cp ${versionsFile} ${versionsFileBak}
-sed "s/private const val versionPatch = .*/private const val versionPatch = ${nextPatchVersion}/" ${versionsFileBak} > ${versionsFile}
-rm ${versionsFileBak}
-
-printf "\n================================================================================\n"
-read -p "I have updated the versions to prepare the next release, please check that the change are correct and press enter so I can commit. "
-
-printf "Committing...\n"
-git commit -a -m 'version++'
-
-printf "\n================================================================================\n"
-printf "Wait for the GitHub action https://github.com/element-hq/element-x-android/actions/workflows/release.yml?query=branch%%3Amain to build the 'main' branch.\n"
-printf "Please enter the url of the github action (!!! WARNING: NOT THE URL OF THE ARTIFACT ANYMORE !!!)\n"
-read -p "For instance https://github.com/element-hq/element-x-android/actions/runs/9065756777: " runUrl
+printf "The GitHub action https://github.com/element-hq/element-x-android/actions/workflows/release.yml?query=branch%%3Amain should have start a new run.\n"
+read -p "Please enter the url of the run, no need to wait for it to complete (example: https://github.com/element-hq/element-x-android/actions/runs/9065756777): " runUrl
 
 targetPath="./tmp/Element/${version}"
 
 printf "\n================================================================================\n"
 printf "Downloading the artifacts...\n"
 
-python3 ./tools/github/download_all_github_artifacts.py \
+ret=1
+
+while [[ $ret -ne 0 ]]; do
+  python3 ./tools/github/download_all_github_artifacts.py \
      --token "${gitHubToken}" \
      --runUrl "${runUrl}" \
      --directory "${targetPath}"
+
+  ret=$?
+  if [[ $ret -ne 0 ]]; then
+    read -p "Error while downloading the artifacts. You may want to fix the issue and retry. Retry (yes/no) default to yes? " doRetry
+    doRetry=${doRetry:-yes}
+    if [ "${doRetry}" == "no" ]; then
+      exit 1
+    fi
+  fi
+done
 
 printf "\n================================================================================\n"
 printf "Unzipping the F-Droid artifact...\n"
@@ -281,7 +276,7 @@ printf "File app-fdroid-x86_64-release-signed.apk:\n"
 "${buildToolsPath}"/aapt dump badging "${fdroidTargetPath}"/app-fdroid-x86_64-release-signed.apk | grep package
 
 printf "\n"
-read -p "Does it look correct? Press enter when it's done."
+read -p "Does it look correct? Press enter when it's done. "
 
 printf "\n================================================================================\n"
 printf "The APKs in ${fdroidTargetPath} have been signed!\n"
@@ -324,8 +319,8 @@ printf "\n======================================================================
 printf "The file ${signedBundlePath} has been signed and can be uploaded to the PlayStore!\n"
 
 printf "\n================================================================================\n"
-read -p "Do you want to build the APKs from the app bundle? You need to do this step if you want to install the application to your device. (yes/no) default to yes " doBuildApks
-doBuildApks=${doBuildApks:-yes}
+read -p "Do you want to build the APKs from the app bundle? You need to do this step if you want to install the application to your device. (yes/no) default to no " doBuildApks
+doBuildApks=${doBuildApks:-no}
 
 if [ "${doBuildApks}" == "yes" ]; then
   printf "Building apks...\n"
@@ -374,7 +369,7 @@ read -p ". Press enter to continue. "
 printf "\n================================================================================\n"
 printf "Update the project release notes:\n\n"
 
-read -p "Copy the content of the release note generated by GitHub to the file CHANGES.md and press enter to commit the change. \n"
+read -p "Copy the content of the release note generated by GitHub to the file CHANGES.md and press enter to commit the change. "
 
 printf "\n================================================================================\n"
 printf "Committing...\n"

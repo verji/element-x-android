@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomdirectory.impl.root
@@ -54,11 +45,11 @@ import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.aliasScreenTitle
 import io.element.android.libraries.designsystem.theme.components.CircularProgressIndicator
+import io.element.android.libraries.designsystem.theme.components.FilledTextField
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.IconButton
 import io.element.android.libraries.designsystem.theme.components.Scaffold
 import io.element.android.libraries.designsystem.theme.components.Text
-import io.element.android.libraries.designsystem.theme.components.TextField
 import io.element.android.libraries.designsystem.theme.components.TopAppBar
 import io.element.android.libraries.testtags.TestTags
 import io.element.android.libraries.ui.strings.CommonStrings
@@ -154,7 +145,7 @@ private fun RoomDirectoryRoomList(
                 Text(
                     text = stringResource(id = CommonStrings.common_no_results),
                     style = ElementTheme.typography.fontBodyLgRegular,
-                    color = ElementTheme.colors.textPlaceholder,
+                    color = ElementTheme.colors.textSecondary,
                     modifier = Modifier.padding(16.dp)
                 )
             }
@@ -194,8 +185,8 @@ private fun SearchTextField(
     colors: TextFieldColors = TextFieldDefaults.colors(
         focusedContainerColor = Color.Transparent,
         unfocusedContainerColor = Color.Transparent,
-        unfocusedPlaceholderColor = ElementTheme.colors.textPlaceholder,
-        focusedPlaceholderColor = ElementTheme.colors.textPlaceholder,
+        unfocusedPlaceholderColor = ElementTheme.colors.textSecondary,
+        focusedPlaceholderColor = ElementTheme.colors.textSecondary,
         focusedTextColor = ElementTheme.colors.textPrimary,
         unfocusedTextColor = ElementTheme.colors.textPrimary,
         focusedIndicatorColor = ElementTheme.colors.borderInteractiveSecondary,
@@ -203,7 +194,7 @@ private fun SearchTextField(
     ),
 ) {
     val focusManager = LocalFocusManager.current
-    TextField(
+    FilledTextField(
         modifier = modifier.testTag(TestTags.searchTextField.value),
         textStyle = ElementTheme.typography.fontBodyLgRegular,
         singleLine = true,

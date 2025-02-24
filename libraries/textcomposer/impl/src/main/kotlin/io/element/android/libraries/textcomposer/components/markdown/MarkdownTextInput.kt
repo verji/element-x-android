@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.textcomposer.components.markdown
@@ -45,6 +36,7 @@ import io.element.android.libraries.textcomposer.mentions.updateMentionStyles
 import io.element.android.libraries.textcomposer.model.MarkdownTextEditorState
 import io.element.android.libraries.textcomposer.model.Suggestion
 import io.element.android.libraries.textcomposer.model.SuggestionType
+import io.element.android.libraries.textcomposer.model.aMarkdownTextEditorState
 import io.element.android.wysiwyg.compose.RichTextEditorStyle
 import io.element.android.wysiwyg.compose.internal.applyStyleInCompose
 
@@ -193,7 +185,7 @@ internal fun MarkdownTextInputPreview() {
     ElementPreview {
         val style = ElementRichTextEditorStyle.composerStyle(hasFocus = true)
         MarkdownTextInput(
-            state = aMarkdownTextEditorState(),
+            state = aMarkdownTextEditorState(initialText = "Hello, World!"),
             subcomposing = false,
             onTyping = {},
             onReceiveSuggestion = {},
@@ -202,11 +194,3 @@ internal fun MarkdownTextInputPreview() {
         )
     }
 }
-
-internal fun aMarkdownTextEditorState(
-    initialText: String = "Hello, World!",
-    initialFocus: Boolean = true,
-) = MarkdownTextEditorState(
-    initialText = initialText,
-    initialFocus = initialFocus,
-)

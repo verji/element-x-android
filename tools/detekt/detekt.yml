@@ -3,7 +3,7 @@
 style:
   AlsoCouldBeApply:
     active: true
-  OptionalWhenBraces:
+  BracesOnWhenStatements:
     active: false
   CascadingCallWrapping:
     active: true
@@ -224,9 +224,11 @@ Compose:
       - LocalCompoundColors
       - LocalSnackbarDispatcher
       - LocalCameraPositionState
+      - LocalMediaItemPresenterFactories
       - LocalTimelineItemPresenterFactories
       - LocalRoomMemberProfilesCache
       - LocalMentionSpanTheme
+      - LocalAnalyticsService
   CompositionLocalNaming:
     active: true
   ContentEmitterReturningValues:

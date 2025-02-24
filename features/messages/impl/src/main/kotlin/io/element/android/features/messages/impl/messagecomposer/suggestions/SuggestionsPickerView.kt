@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.messagecomposer.suggestions
@@ -45,7 +36,6 @@ import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
-import io.element.android.libraries.matrix.ui.components.aRoomSummaryDetails
 import io.element.android.libraries.matrix.ui.model.getAvatarData
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import kotlinx.collections.immutable.ImmutableList
@@ -69,7 +59,7 @@ fun SuggestionsPickerView(
                 when (suggestion) {
                     is ResolvedSuggestion.AtRoom -> "@room"
                     is ResolvedSuggestion.Member -> suggestion.roomMember.userId.value
-                    is ResolvedSuggestion.Alias -> suggestion.roomAlias.value
+                    is ResolvedSuggestion.Alias -> suggestion.roomId.value
                 }
             }
         ) {
@@ -105,12 +95,12 @@ private fun SuggestionItemView(
         val avatarData = when (suggestion) {
             is ResolvedSuggestion.AtRoom -> roomAvatar?.copy(size = avatarSize) ?: AvatarData(roomId, roomName, null, avatarSize)
             is ResolvedSuggestion.Member -> suggestion.roomMember.getAvatarData(avatarSize)
-            is ResolvedSuggestion.Alias -> suggestion.roomSummary.getAvatarData(avatarSize)
+            is ResolvedSuggestion.Alias -> suggestion.getAvatarData(avatarSize)
         }
         val title = when (suggestion) {
             is ResolvedSuggestion.AtRoom -> stringResource(R.string.screen_room_mentions_at_room_title)
             is ResolvedSuggestion.Member -> suggestion.roomMember.displayName
-            is ResolvedSuggestion.Alias -> suggestion.roomSummary.name
+            is ResolvedSuggestion.Alias -> suggestion.roomName
         }
         val subtitle = when (suggestion) {
             is ResolvedSuggestion.AtRoom -> "@room"
@@ -159,13 +149,9 @@ internal fun SuggestionsPickerViewPreview() {
             normalizedPowerLevel = 0L,
             isIgnored = false,
             role = RoomMember.Role.USER,
+            membershipChangeReason = null,
         )
         val anAlias = remember { RoomAlias("#room:domain.org") }
-        val roomSummaryDetails = remember {
-            aRoomSummaryDetails(
-                name = "My room",
-            )
-        }
         SuggestionsPickerView(
             roomId = RoomId("!room:matrix.org"),
             roomName = "Room",
@@ -175,8 +161,10 @@ internal fun SuggestionsPickerViewPreview() {
                 ResolvedSuggestion.Member(roomMember),
                 ResolvedSuggestion.Member(roomMember.copy(userId = UserId("@bob:server.org"), displayName = "Bob")),
                 ResolvedSuggestion.Alias(
-                    anAlias,
-                    roomSummaryDetails,
+                    roomAlias = anAlias,
+                    roomId = RoomId("!room:matrix.org"),
+                    roomName = "My room",
+                    roomAvatarUrl = null,
                 )
             ),
             onSelectSuggestion = {}

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomlist.impl.components
@@ -84,6 +75,10 @@ fun RoomListContentView(
             }
             is RoomListContentState.Empty -> {
                 EmptyView(
+                    state = contentState,
+                    eventSink = eventSink,
+                    onSetUpRecoveryClick = onSetUpRecoveryClick,
+                    onConfirmRecoveryKeyClick = onConfirmRecoveryKeyClick,
                     onCreateRoomClick = onCreateRoomClick,
                 )
             }
@@ -117,21 +112,44 @@ private fun SkeletonView(count: Int, modifier: Modifier = Modifier) {
 
 @Composable
 private fun EmptyView(
+    state: RoomListContentState.Empty,
+    eventSink: (RoomListEvents) -> Unit,
+    onSetUpRecoveryClick: () -> Unit,
+    onConfirmRecoveryKeyClick: () -> Unit,
     onCreateRoomClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    EmptyScaffold(
-        title = R.string.screen_roomlist_empty_title,
-        subtitle = R.string.screen_roomlist_empty_message,
-        action = {
-            Button(
-                text = stringResource(CommonStrings.action_start_chat),
-                leadingIcon = IconSource.Vector(CompoundIcons.Compose()),
-                onClick = onCreateRoomClick,
-            )
-        },
-        modifier = modifier.fillMaxSize(),
-    )
+    Box(modifier.fillMaxSize()) {
+        EmptyScaffold(
+            title = R.string.screen_roomlist_empty_title,
+            subtitle = R.string.screen_roomlist_empty_message,
+            action = {
+                Button(
+                    text = stringResource(CommonStrings.action_start_chat),
+                    leadingIcon = IconSource.Vector(CompoundIcons.Compose()),
+                    onClick = onCreateRoomClick,
+                )
+            },
+            modifier = Modifier.align(Alignment.Center),
+        )
+        Box {
+            when (state.securityBannerState) {
+                SecurityBannerState.SetUpRecovery -> {
+                    SetUpRecoveryKeyBanner(
+                        onContinueClick = onSetUpRecoveryClick,
+                        onDismissClick = { eventSink(RoomListEvents.DismissBanner) },
+                    )
+                }
+                SecurityBannerState.RecoveryKeyConfirmation -> {
+                    ConfirmRecoveryKeyBanner(
+                        onContinueClick = onConfirmRecoveryKeyClick,
+                        onDismissClick = { eventSink(RoomListEvents.DismissBanner) },
+                    )
+                }
+                else -> Unit
+            }
+        }
+    }
 }
 
 @Composable
@@ -194,7 +212,7 @@ private fun RoomsViewList(
                 item {
                     SetUpRecoveryKeyBanner(
                         onContinueClick = onSetUpRecoveryClick,
-                        onDismissClick = { updatedEventSink(RoomListEvents.DismissRecoveryKeyPrompt) }
+                        onDismissClick = { updatedEventSink(RoomListEvents.DismissBanner) },
                     )
                 }
             }
@@ -202,7 +220,7 @@ private fun RoomsViewList(
                 item {
                     ConfirmRecoveryKeyBanner(
                         onContinueClick = onConfirmRecoveryKeyClick,
-                        onDismissClick = { updatedEventSink(RoomListEvents.DismissRecoveryKeyPrompt) }
+                        onDismissClick = { updatedEventSink(RoomListEvents.DismissBanner) },
                     )
                 }
             }

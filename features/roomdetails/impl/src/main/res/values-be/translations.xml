@@ -52,6 +52,7 @@
   <string name="screen_room_details_notification_mode_custom">"Уласныя"</string>
   <string name="screen_room_details_notification_mode_default">"Стандартныя"</string>
   <string name="screen_room_details_notification_title">"Апавяшчэнні"</string>
+  <string name="screen_room_details_pinned_events_row_title">"Замацаваныя паведамленні"</string>
   <string name="screen_room_details_roles_and_permissions">"Ролі і дазволы"</string>
   <string name="screen_room_details_room_name_label">"Назва пакоя"</string>
   <string name="screen_room_details_security_title">"Бяспека"</string>
@@ -114,4 +115,7 @@
   <string name="screen_room_roles_and_permissions_roles_header">"Ролі"</string>
   <string name="screen_room_roles_and_permissions_room_details">"Дэталі пакоя"</string>
   <string name="screen_room_roles_and_permissions_title">"Ролі і дазволы"</string>
+  <string name="screen_security_and_privacy_ask_to_join_option_title">"Папрасіце далучыцца"</string>
+  <string name="screen_security_and_privacy_room_access_anyone_option_title">"Хто заўгодна"</string>
+  <string name="screen_security_and_privacy_room_history_anyone_option_title">"Хто заўгодна"</string>
 </resources>

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl
@@ -42,7 +33,8 @@ import io.element.android.features.messages.impl.actionlist.ActionListEvents
 import io.element.android.features.messages.impl.actionlist.ActionListState
 import io.element.android.features.messages.impl.actionlist.anActionListState
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
-import io.element.android.features.messages.impl.attachments.Attachment
+import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure
+import io.element.android.features.messages.impl.crypto.sendfailure.resolve.aChangedIdentitySendFailure
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerItem
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
@@ -62,16 +54,16 @@ import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.testtags.TestTags
 import io.element.android.libraries.ui.strings.CommonStrings
-import io.element.android.tests.testutils.EnsureCalledOnceWithParam
+import io.element.android.tests.testutils.EnsureCalledOnceWithTwoParamsAndResult
 import io.element.android.tests.testutils.EnsureNeverCalled
 import io.element.android.tests.testutils.EnsureNeverCalledWithParam
-import io.element.android.tests.testutils.EnsureNeverCalledWithParamAndResult
+import io.element.android.tests.testutils.EnsureNeverCalledWithTwoParams
+import io.element.android.tests.testutils.EnsureNeverCalledWithTwoParamsAndResult
 import io.element.android.tests.testutils.EventsRecorder
 import io.element.android.tests.testutils.clickOn
 import io.element.android.tests.testutils.ensureCalledOnce
 import io.element.android.tests.testutils.ensureCalledOnceWithParam
 import io.element.android.tests.testutils.pressBack
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Rule
 import org.junit.Test
@@ -137,8 +129,9 @@ class MessagesViewTest {
             eventSink = eventsRecorder
         )
         val timelineItem = state.timelineState.timelineItems.first()
-        val callback = EnsureCalledOnceWithParam(
-            expectedParam = timelineItem,
+        val callback = EnsureCalledOnceWithTwoParamsAndResult(
+            expectedParam1 = true,
+            expectedParam2 = timelineItem,
             result = true,
         )
         rule.setMessagesView(
@@ -336,8 +329,10 @@ class MessagesViewTest {
             actionListState = anActionListState(
                 target = ActionListState.Target.Success(
                     event = timelineItem,
+                    sentTimeFull = "",
                     displayEmojiReactions = true,
                     actions = persistentListOf(TimelineItemAction.Edit),
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                 )
             ),
         )
@@ -361,7 +356,7 @@ class MessagesViewTest {
             state = state,
         )
         rule.onAllNodesWithText("👍️").onFirst().performClick()
-        eventsRecorder.assertSingle(MessagesEvents.ToggleReaction("👍️", timelineItem.id))
+        eventsRecorder.assertSingle(MessagesEvents.ToggleReaction("👍️", timelineItem.eventOrTransactionId))
     }
 
     @Test
@@ -407,7 +402,9 @@ class MessagesViewTest {
             actionListState = anActionListState(
                 target = ActionListState.Target.Success(
                     event = timelineItem,
+                    sentTimeFull = "",
                     displayEmojiReactions = true,
+                    verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(TimelineItemAction.Edit),
                 ),
             ),
@@ -423,6 +420,33 @@ class MessagesViewTest {
         // Give time for the close animation to complete
         rule.mainClock.advanceTimeBy(milliseconds = 1_000)
         eventsRecorder.assertSingle(CustomReactionEvents.ShowCustomReactionSheet(timelineItem))
+    }
+
+    @Test
+    fun `clicking on verified user send failure from action list emits the expected Event`() {
+        val eventsRecorder = EventsRecorder<TimelineEvents>()
+        val state = aMessagesState()
+        val timelineItem = state.timelineState.timelineItems.first() as TimelineItem.Event
+        val stateWithActionListState = state.copy(
+            actionListState = anActionListState(
+                target = ActionListState.Target.Success(
+                    event = timelineItem,
+                    sentTimeFull = "",
+                    displayEmojiReactions = true,
+                    verifiedUserSendFailure = aChangedIdentitySendFailure(),
+                    actions = persistentListOf(),
+                ),
+            ),
+            timelineState = aTimelineState(eventSink = eventsRecorder)
+        )
+        rule.setMessagesView(
+            state = stateWithActionListState,
+        )
+        val verifiedUserSendFailure = rule.activity.getString(CommonStrings.screen_timeline_item_menu_send_failure_changed_identity, "Alice")
+        rule.onNodeWithText(verifiedUserSendFailure).performClick()
+        // Give time for the close animation to complete
+        rule.mainClock.advanceTimeBy(milliseconds = 1_000)
+        eventsRecorder.assertSingle(TimelineEvents.ComputeVerifiedUserSendFailure(timelineItem))
     }
 
     @Test
@@ -463,7 +487,7 @@ class MessagesViewTest {
         // Give time for the close animation to complete
         rule.mainClock.advanceTimeBy(milliseconds = 1_000)
         customReactionStateEventsRecorder.assertSingle(CustomReactionEvents.DismissCustomReactionSheet)
-        eventsRecorder.assertSingle(MessagesEvents.ToggleReaction(aUnicode, timelineItem.id))
+        eventsRecorder.assertSingle(MessagesEvents.ToggleReaction(aUnicode, timelineItem.eventOrTransactionId))
     }
 
     @Test
@@ -490,10 +514,9 @@ private fun <R : TestRule> AndroidComposeTestRule<R, ComponentActivity>.setMessa
     state: MessagesState,
     onBackClick: () -> Unit = EnsureNeverCalled(),
     onRoomDetailsClick: () -> Unit = EnsureNeverCalled(),
-    onEventClick: (event: TimelineItem.Event) -> Boolean = EnsureNeverCalledWithParamAndResult(),
+    onEventClick: (isLive: Boolean, event: TimelineItem.Event) -> Boolean = EnsureNeverCalledWithTwoParamsAndResult(),
     onUserDataClick: (UserId) -> Unit = EnsureNeverCalledWithParam(),
-    onLinkClick: (String) -> Unit = EnsureNeverCalledWithParam(),
-    onPreviewAttachments: (ImmutableList<Attachment>) -> Unit = EnsureNeverCalledWithParam(),
+    onLinkClick: (String, Boolean) -> Unit = EnsureNeverCalledWithTwoParams(),
     onSendLocationClick: () -> Unit = EnsureNeverCalled(),
     onCreatePollClick: () -> Unit = EnsureNeverCalled(),
     onJoinCallClick: () -> Unit = EnsureNeverCalled(),
@@ -508,14 +531,14 @@ private fun <R : TestRule> AndroidComposeTestRule<R, ComponentActivity>.setMessa
                 state = state,
                 onBackClick = onBackClick,
                 onRoomDetailsClick = onRoomDetailsClick,
-                onEventClick = onEventClick,
+                onEventContentClick = onEventClick,
                 onUserDataClick = onUserDataClick,
                 onLinkClick = onLinkClick,
-                onPreviewAttachments = onPreviewAttachments,
                 onSendLocationClick = onSendLocationClick,
                 onCreatePollClick = onCreatePollClick,
                 onJoinCallClick = onJoinCallClick,
                 onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
+                knockRequestsBannerView = {}
             )
         }
     }

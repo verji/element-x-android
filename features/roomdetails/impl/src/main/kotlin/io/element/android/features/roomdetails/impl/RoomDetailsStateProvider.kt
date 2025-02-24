@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomdetails.impl
@@ -19,9 +10,12 @@ package io.element.android.features.roomdetails.impl
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import io.element.android.features.leaveroom.api.LeaveRoomState
 import io.element.android.features.leaveroom.api.aLeaveRoomState
+import io.element.android.features.roomcall.api.RoomCallState
+import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roomdetails.impl.members.aRoomMember
-import io.element.android.features.userprofile.shared.UserProfileState
+import io.element.android.features.userprofile.api.UserProfileState
 import io.element.android.features.userprofile.shared.aUserProfileState
+import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.matrix.api.core.RoomAlias
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
@@ -42,7 +36,7 @@ open class RoomDetailsStateProvider : PreviewParameterProvider<RoomDetailsState>
             aRoomDetailsState(isEncrypted = false),
             aRoomDetailsState(roomAlias = null),
             aDmRoomDetailsState(),
-            aDmRoomDetailsState(isDmMemberIgnored = true),
+            aDmRoomDetailsState(isDmMemberIgnored = true, roomName = "Daniel (ignored and clear)", isEncrypted = false),
             aRoomDetailsState(canInvite = true),
             aRoomDetailsState(isFavorite = true),
             aRoomDetailsState(
@@ -50,9 +44,12 @@ open class RoomDetailsStateProvider : PreviewParameterProvider<RoomDetailsState>
                 // Also test the roomNotificationSettings ALL_MESSAGES in the same screenshot. Icon 'Mute' should be displayed
                 roomNotificationSettings = aRoomNotificationSettings(mode = RoomNotificationMode.ALL_MESSAGES, isDefault = true)
             ),
-            aRoomDetailsState(canCall = false, canInvite = false),
+            aRoomDetailsState(roomCallState = aStandByCallState(false), canInvite = false),
             aRoomDetailsState(isPublic = false),
             aRoomDetailsState(heroes = aMatrixUserList()),
+            aRoomDetailsState(pinnedMessagesCount = 3),
+            aRoomDetailsState(knockRequestsCount = null, canShowKnockRequests = true),
+            aRoomDetailsState(knockRequestsCount = 4, canShowKnockRequests = true),
             // Add other state here
         )
 }
@@ -67,6 +64,7 @@ fun aDmRoomMember(
     normalizedPowerLevel: Long = powerLevel,
     isIgnored: Boolean = false,
     role: RoomMember.Role = RoomMember.Role.USER,
+    membershipChangeReason: String? = null,
 ) = RoomMember(
     userId = userId,
     displayName = displayName,
@@ -77,6 +75,7 @@ fun aDmRoomMember(
     normalizedPowerLevel = normalizedPowerLevel,
     isIgnored = isIgnored,
     role = role,
+    membershipChangeReason = membershipChangeReason
 )
 
 fun aRoomDetailsState(
@@ -96,7 +95,7 @@ fun aRoomDetailsState(
     canInvite: Boolean = false,
     canEdit: Boolean = false,
     canShowNotificationSettings: Boolean = true,
-    canCall: Boolean = true,
+    roomCallState: RoomCallState = aStandByCallState(),
     roomType: RoomDetailsType = RoomDetailsType.Room,
     roomMemberDetailsState: UserProfileState? = null,
     leaveRoomState: LeaveRoomState = aLeaveRoomState(),
@@ -105,6 +104,12 @@ fun aRoomDetailsState(
     displayAdminSettings: Boolean = false,
     isPublic: Boolean = true,
     heroes: List<MatrixUser> = emptyList(),
+    canShowPinnedMessages: Boolean = true,
+    canShowMediaGallery: Boolean = true,
+    pinnedMessagesCount: Int? = null,
+    canShowKnockRequests: Boolean = false,
+    knockRequestsCount: Int? = null,
+    canShowSecurityAndPrivacy: Boolean = true,
     eventSink: (RoomDetailsEvent) -> Unit = {},
 ) = RoomDetailsState(
     roomId = roomId,
@@ -117,7 +122,7 @@ fun aRoomDetailsState(
     canInvite = canInvite,
     canEdit = canEdit,
     canShowNotificationSettings = canShowNotificationSettings,
-    canCall = canCall,
+    roomCallState = roomCallState,
     roomType = roomType,
     roomMemberDetailsState = roomMemberDetailsState,
     leaveRoomState = leaveRoomState,
@@ -126,6 +131,12 @@ fun aRoomDetailsState(
     displayRolesAndPermissionsSettings = displayAdminSettings,
     isPublic = isPublic,
     heroes = heroes.toPersistentList(),
+    canShowPinnedMessages = canShowPinnedMessages,
+    canShowMediaGallery = canShowMediaGallery,
+    pinnedMessagesCount = pinnedMessagesCount,
+    canShowKnockRequests = canShowKnockRequests,
+    knockRequestsCount = knockRequestsCount,
+    canShowSecurityAndPrivacy = canShowSecurityAndPrivacy,
     eventSink = eventSink
 )
 
@@ -140,12 +151,16 @@ fun aRoomNotificationSettings(
 fun aDmRoomDetailsState(
     isDmMemberIgnored: Boolean = false,
     roomName: String = "Daniel",
+    isEncrypted: Boolean = true,
 ) = aRoomDetailsState(
     roomName = roomName,
     isPublic = false,
+    isEncrypted = isEncrypted,
     roomType = RoomDetailsType.Dm(
-        aRoomMember(),
-        aDmRoomMember(isIgnored = isDmMemberIgnored),
+        me = aRoomMember(),
+        otherMember = aDmRoomMember(isIgnored = isDmMemberIgnored),
     ),
-    roomMemberDetailsState = aUserProfileState()
+    roomMemberDetailsState = aUserProfileState(
+        isBlocked = AsyncData.Success(isDmMemberIgnored),
+    )
 )

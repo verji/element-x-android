@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.userprofile.shared
@@ -22,14 +13,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.libraries.architecture.AsyncData
+import io.element.android.libraries.designsystem.atomic.atoms.MatrixBadgeAtom
+import io.element.android.libraries.designsystem.atomic.molecules.MatrixBadgeRowMolecule
 import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
@@ -39,12 +34,15 @@ import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.testtags.TestTags
 import io.element.android.libraries.testtags.testTag
+import io.element.android.libraries.ui.strings.CommonStrings
+import kotlinx.collections.immutable.toImmutableList
 
 @Composable
 fun UserProfileHeaderSection(
     avatarUrl: String?,
     userId: UserId,
     userName: String?,
+    isUserVerified: AsyncData<Boolean>,
     openAvatarPreview: (url: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -57,8 +55,8 @@ fun UserProfileHeaderSection(
         Avatar(
             avatarData = AvatarData(userId.value, userName, avatarUrl, AvatarSize.UserHeader),
             modifier = Modifier
-                    .clickable(enabled = avatarUrl != null) { openAvatarPreview(avatarUrl!!) }
-                    .testTag(TestTags.memberDetailAvatar)
+                .clickable(enabled = avatarUrl != null) { openAvatarPreview(avatarUrl!!) }
+                .testTag(TestTags.memberDetailAvatar)
         )
         Spacer(modifier = Modifier.height(24.dp))
         if (userName != null) {
@@ -73,12 +71,20 @@ fun UserProfileHeaderSection(
         Text(
             text = userId.value,
             style = ElementTheme.typography.fontBodyLgRegular,
-            color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+            color = ElementTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
+        if (isUserVerified.dataOrNull() == true) {
+            MatrixBadgeRowMolecule(
+                data = listOf(
+                    MatrixBadgeAtom.MatrixBadgeData(
+                        text = stringResource(CommonStrings.common_verified),
+                        icon = CompoundIcons.Verified(),
+                        type = MatrixBadgeAtom.Type.Positive,
+                    )
+                ).toImmutableList(),
+            )
+        }
         Spacer(Modifier.height(40.dp))
     }
 }
@@ -90,6 +96,7 @@ internal fun UserProfileHeaderSectionPreview() = ElementPreview {
         avatarUrl = null,
         userId = UserId("@alice:example.com"),
         userName = "Alice",
+        isUserVerified = AsyncData.Success(true),
         openAvatarPreview = {},
     )
 }

@@ -1,21 +1,13 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.preferences.impl.notifications
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.runtime.Composable
@@ -29,7 +21,8 @@ import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.preferences.impl.R
 import io.element.android.libraries.androidutils.system.startNotificationSettingsIntent
 import io.element.android.libraries.architecture.AsyncData
-import io.element.android.libraries.designsystem.atomic.molecules.DialogLikeBannerMolecule
+import io.element.android.libraries.designsystem.components.Announcement
+import io.element.android.libraries.designsystem.components.AnnouncementType
 import io.element.android.libraries.designsystem.components.async.AsyncActionView
 import io.element.android.libraries.designsystem.components.dialogs.ErrorDialog
 import io.element.android.libraries.designsystem.components.dialogs.ListOption
@@ -141,7 +134,7 @@ private fun NotificationSettingsContentView(
                 PreferenceText(
                     icon = CompoundIcons.VoiceCall(),
                     title = stringResource(id = R.string.full_screen_intent_banner_title),
-                    subtitle = stringResource(R.string.full_screen_intent_banner_message,),
+                    subtitle = stringResource(R.string.full_screen_intent_banner_message),
                     onClick = {
                         state.fullScreenIntentPermissionsState.openFullScreenIntentSettings()
                     }
@@ -256,19 +249,24 @@ private fun InvalidNotificationSettingsView(
     showError: Boolean,
     onContinueClick: () -> Unit,
     onDismissError: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    DialogLikeBannerMolecule(
+    Announcement(
         title = stringResource(R.string.screen_notification_settings_configuration_mismatch),
-        content = stringResource(R.string.screen_notification_settings_configuration_mismatch_description),
-        onSubmitClick = onContinueClick,
-        onDismissClick = null,
+        description = stringResource(R.string.screen_notification_settings_configuration_mismatch_description),
+        type = AnnouncementType.Actionable(
+            onActionClick = onContinueClick,
+            actionText = stringResource(CommonStrings.action_continue),
+            onDismissClick = null,
+        ),
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
 
     if (showError) {
         ErrorDialog(
             title = stringResource(id = CommonStrings.dialog_title_error),
             content = stringResource(id = R.string.screen_notification_settings_failed_fixing_configuration),
-            onDismiss = onDismissError
+            onSubmit = onDismissError
         )
     }
 }

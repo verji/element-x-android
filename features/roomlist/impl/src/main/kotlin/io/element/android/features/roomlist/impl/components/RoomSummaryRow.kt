@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomlist.impl.components
@@ -21,6 +12,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Arrangement.Absolute.spacedBy
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -32,8 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,6 +38,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.roomlist.impl.R
 import io.element.android.features.roomlist.impl.RoomListEvents
 import io.element.android.features.roomlist.impl.model.RoomListRoomSummary
 import io.element.android.features.roomlist.impl.model.RoomListRoomSummaryProvider
@@ -81,54 +73,86 @@ internal fun RoomSummaryRow(
     eventSink: (RoomListEvents) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    when (room.displayType) {
-        RoomSummaryDisplayType.PLACEHOLDER -> {
-            RoomSummaryPlaceholderRow(modifier = modifier)
-        }
-        RoomSummaryDisplayType.INVITE -> {
-            RoomSummaryScaffoldRow(
-                room = room,
-                onClick = onClick,
-                onLongClick = {
-                    Timber.d("Long click on invite room")
-                },
-                modifier = modifier
-            ) {
-                InviteNameAndIndicatorRow(name = room.name)
-                InviteSubtitle(isDm = room.isDm, inviteSender = room.inviteSender, canonicalAlias = room.canonicalAlias)
-                if (!room.isDm && room.inviteSender != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    InviteSenderView(
-                        modifier = Modifier.fillMaxWidth(),
-                        inviteSender = room.inviteSender,
+    Box(modifier = modifier) {
+        when (room.displayType) {
+            RoomSummaryDisplayType.PLACEHOLDER -> {
+                RoomSummaryPlaceholderRow()
+            }
+            RoomSummaryDisplayType.INVITE -> {
+                RoomSummaryScaffoldRow(
+                    room = room,
+                    onClick = onClick,
+                    onLongClick = {
+                        Timber.d("Long click on invite room")
+                    },
+                ) {
+                    InviteNameAndIndicatorRow(name = room.name)
+                    InviteSubtitle(isDm = room.isDm, inviteSender = room.inviteSender, canonicalAlias = room.canonicalAlias)
+                    if (!room.isDm && room.inviteSender != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        InviteSenderView(
+                            modifier = Modifier.fillMaxWidth(),
+                            inviteSender = room.inviteSender,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    InviteButtonsRow(
+                        onAcceptClick = {
+                            eventSink(RoomListEvents.AcceptInvite(room))
+                        },
+                        onDeclineClick = {
+                            eventSink(RoomListEvents.DeclineInvite(room))
+                        }
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                InviteButtonsRow(
-                    onAcceptClick = {
-                        eventSink(RoomListEvents.AcceptInvite(room))
-                    },
-                    onDeclineClick = {
-                        eventSink(RoomListEvents.DeclineInvite(room))
-                    }
-                )
             }
-        }
-        RoomSummaryDisplayType.ROOM -> {
-            RoomSummaryScaffoldRow(
-                room = room,
-                onClick = onClick,
-                onLongClick = {
-                    eventSink(RoomListEvents.ShowContextMenu(room))
-                },
-                modifier = modifier
-            ) {
-                NameAndTimestampRow(
-                    name = room.name,
-                    timestamp = room.timestamp,
-                    isHighlighted = room.isHighlighted
-                )
-                LastMessageAndIndicatorRow(room = room)
+            RoomSummaryDisplayType.ROOM -> {
+                RoomSummaryScaffoldRow(
+                    room = room,
+                    onClick = onClick,
+                    onLongClick = {
+                        eventSink(RoomListEvents.ShowContextMenu(room))
+                    },
+                ) {
+                    NameAndTimestampRow(
+                        name = room.name,
+                        timestamp = room.timestamp,
+                        isHighlighted = room.isHighlighted
+                    )
+                    LastMessageAndIndicatorRow(room = room)
+                }
+            }
+            RoomSummaryDisplayType.KNOCKED -> {
+                RoomSummaryScaffoldRow(
+                    room = room,
+                    onClick = onClick,
+                    onLongClick = {
+                        Timber.d("Long click on knocked room")
+                    },
+                ) {
+                    NameAndTimestampRow(
+                        name = room.name,
+                        timestamp = null,
+                        isHighlighted = room.isHighlighted
+                    )
+                    if (room.canonicalAlias != null) {
+                        Text(
+                            text = room.canonicalAlias.value,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = ElementTheme.typography.fontBodyMdRegular,
+                            color = ElementTheme.colors.textSecondary,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Text(
+                        text = stringResource(id = R.string.screen_join_room_knock_sent_title),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = ElementTheme.typography.fontBodyMdRegular,
+                        color = ElementTheme.colors.textSecondary,
+                    )
+                }
             }
         }
     }
@@ -146,7 +170,7 @@ private fun RoomSummaryScaffoldRow(
     val clickModifier = Modifier.combinedClickable(
         onClick = { onClick(room) },
         onLongClick = { onLongClick(room) },
-        indication = rememberRipple(),
+        indication = ripple(),
         interactionSource = remember { MutableInteractionSource() }
     )
 
@@ -187,7 +211,7 @@ private fun NameAndTimestampRow(
             style = ElementTheme.typography.fontBodyLgMedium,
             text = name ?: stringResource(id = CommonStrings.common_no_room_name),
             fontStyle = FontStyle.Italic.takeIf { name == null },
-            color = MaterialTheme.roomListRoomName(),
+            color = ElementTheme.roomListRoomName(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -198,7 +222,7 @@ private fun NameAndTimestampRow(
             color = if (isHighlighted) {
                 ElementTheme.colors.unreadIndicator
             } else {
-                MaterialTheme.roomListRoomMessageDate()
+                ElementTheme.roomListRoomMessageDate()
             },
         )
     }
@@ -222,7 +246,7 @@ private fun InviteSubtitle(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = ElementTheme.typography.fontBodyMdRegular,
-            color = MaterialTheme.roomListRoomMessage(),
+            color = ElementTheme.roomListRoomMessage(),
             modifier = modifier,
         )
     }
@@ -243,7 +267,7 @@ private fun LastMessageAndIndicatorRow(
         Text(
             modifier = Modifier.weight(1f),
             text = attributedLastMessage,
-            color = MaterialTheme.roomListRoomMessage(),
+            color = ElementTheme.roomListRoomMessage(),
             style = ElementTheme.typography.fontBodyMdRegular,
             minLines = 2,
             maxLines = 2,
@@ -290,7 +314,7 @@ private fun InviteNameAndIndicatorRow(
             style = ElementTheme.typography.fontBodyLgMedium,
             text = name ?: stringResource(id = CommonStrings.common_no_room_name),
             fontStyle = FontStyle.Italic.takeIf { name == null },
-            color = MaterialTheme.roomListRoomName(),
+            color = ElementTheme.roomListRoomName(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

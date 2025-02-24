@@ -1,3 +1,10 @@
+/*
+ * Copyright 2022-2024 New Vector Ltd.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
+ */
+
 buildscript {
     dependencies {
         classpath(libs.kotlin.gradle.plugin)
@@ -5,28 +12,13 @@ buildscript {
     }
 }
 
-/*
- * Copyright (c) 2022 New Vector Ltd
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     id("io.element.android-root")
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.anvil) apply false
     alias(libs.plugins.kotlin.jvm) apply false
@@ -57,7 +49,11 @@ allprojects {
         config.from(files("$rootDir/tools/detekt/detekt.yml"))
     }
     dependencies {
-        detektPlugins("io.nlopez.compose.rules:detekt:0.4.11")
+        detektPlugins("io.nlopez.compose.rules:detekt:0.4.22")
+    }
+
+    tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+        exclude("io/element/android/tests/konsist/failures/**")
     }
 
     // KtLint
@@ -80,8 +76,10 @@ allprojects {
             // To have XML report for Danger
             reporter(org.jlleitschuh.gradle.ktlint.reporter.ReporterType.CHECKSTYLE)
         }
+        val generatedPath = "${layout.buildDirectory.asFile.get()}/generated/"
         filter {
-            exclude { element -> element.file.path.contains("${layout.buildDirectory.asFile.get()}/generated/") }
+            exclude { element -> element.file.path.contains(generatedPath) }
+            exclude("io/element/android/tests/konsist/failures/**")
         }
     }
     // Dependency check
@@ -90,20 +88,15 @@ allprojects {
     }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        // Warnings are potential errors, so stop ignoring them
-        // This is disabled by default, but the CI will enforce this.
-        // You can override by passing `-PallWarningsAsErrors=true` in the command line
-        // Or add a line with "allWarningsAsErrors=true" in your ~/.gradle/gradle.properties file
-        kotlinOptions.allWarningsAsErrors = project.properties["allWarningsAsErrors"] == "true"
+        compilerOptions {
+            // Warnings are potential errors, so stop ignoring them
+            // This is disabled by default, but the CI will enforce this.
+            // You can override by passing `-PallWarningsAsErrors=true` in the command line
+            // Or add a line with "allWarningsAsErrors=true" in your ~/.gradle/gradle.properties file
+            allWarningsAsErrors = project.properties["allWarningsAsErrors"] == "true"
 
-        kotlinOptions {
-            /*
             // Uncomment to suppress Compose Kotlin compiler compatibility warning
-            freeCompilerArgs += listOf(
-                "-P",
-                "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
-            )
-             */
+//            freeCompilerArgs.addAll(listOf("-P", "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"))
         }
     }
 }
@@ -200,19 +193,23 @@ subprojects {
 
 subprojects {
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        kotlinOptions {
+        compilerOptions {
             if (project.findProperty("composeCompilerReports") == "true") {
-                freeCompilerArgs += listOf(
-                    "-P",
-                    "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=" +
-                        "${project.layout.buildDirectory.asFile.get().absolutePath}/compose_compiler"
+                freeCompilerArgs.addAll(
+                    listOf(
+                        "-P",
+                        "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=" +
+                            "${project.layout.buildDirectory.asFile.get().absolutePath}/compose_compiler"
+                    )
                 )
             }
             if (project.findProperty("composeCompilerMetrics") == "true") {
-                freeCompilerArgs += listOf(
-                    "-P",
-                    "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=" +
-                        "${project.layout.buildDirectory.asFile.get().absolutePath}/compose_compiler"
+                freeCompilerArgs.addAll(
+                    listOf(
+                        "-P",
+                        "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=" +
+                            "${project.layout.buildDirectory.asFile.get().absolutePath}/compose_compiler"
+                    )
                 )
             }
         }

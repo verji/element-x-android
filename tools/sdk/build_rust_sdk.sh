@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Copyright 2024 New Vector Ltd.
+#
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+# Please see LICENSE files in the repository root for full details.
+
 # Exit on error
 set -e
 
@@ -49,10 +54,17 @@ if [ "${sdkCorrect}" != "yes" ]; then
 fi
 
 # Ask if the user wants to build the app after
-read -p "Do you want to build the app after (yes/no) default to yes? " buildApp
-buildApp=${buildApp:-yes}
+read -p "Do you want to build the app after (yes/no) default to no? " buildApp
+buildApp=${buildApp:-no}
 
 cd "${elementPwd}"
+
+default_arch="$(uname -m)-linux-android"
+# On ARM MacOS, `uname -m` returns arm64, but the toolchain is called aarch64
+default_arch="${default_arch/arm64/aarch64}"
+
+read -p "Enter the architecture you want to build for (default '$default_arch'): " target_arch
+target_arch="${target_arch:-${default_arch}}"
 
 # If folder ../matrix-rust-components-kotlin does not exist, clone the repo
 if [ ! -d "../matrix-rust-components-kotlin" ]; then
@@ -66,8 +78,8 @@ git reset --hard
 git checkout main
 git pull
 
-printf "\nBuilding the SDK for aarch64-linux-android...\n\n"
-./scripts/build.sh -p "${rustSdkPath}" -m sdk -t aarch64-linux-android -o "${elementPwd}/libraries/rustsdk"
+printf "\nBuilding the SDK for ${target_arch}...\n\n"
+./scripts/build.sh -p "${rustSdkPath}" -m sdk -t "${target_arch}" -o "${elementPwd}/libraries/rustsdk"
 
 cd "${elementPwd}"
 mv ./libraries/rustsdk/sdk-android-debug.aar ./libraries/rustsdk/matrix-rust-sdk.aar

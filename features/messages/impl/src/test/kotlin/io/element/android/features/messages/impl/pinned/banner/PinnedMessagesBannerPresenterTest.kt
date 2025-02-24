@@ -1,26 +1,19 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.pinned.banner
 
 import com.google.common.truth.Truth.assertThat
-import io.element.android.features.networkmonitor.api.NetworkMonitor
-import io.element.android.features.networkmonitor.test.FakeNetworkMonitor
+import io.element.android.features.messages.impl.pinned.PinnedEventsTimelineProvider
 import io.element.android.libraries.eventformatter.test.FakePinnedMessagesBannerFormatter
+import io.element.android.libraries.featureflag.api.FeatureFlags
+import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
 import io.element.android.libraries.matrix.api.room.MatrixRoom
+import io.element.android.libraries.matrix.api.sync.SyncService
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.AN_EVENT_ID_2
@@ -28,6 +21,7 @@ import io.element.android.libraries.matrix.test.A_UNIQUE_ID
 import io.element.android.libraries.matrix.test.A_UNIQUE_ID_2
 import io.element.android.libraries.matrix.test.room.FakeMatrixRoom
 import io.element.android.libraries.matrix.test.room.aRoomInfo
+import io.element.android.libraries.matrix.test.sync.FakeSyncService
 import io.element.android.libraries.matrix.test.timeline.FakeTimeline
 import io.element.android.libraries.matrix.test.timeline.aMessageContent
 import io.element.android.libraries.matrix.test.timeline.anEventTimelineItem
@@ -61,13 +55,13 @@ class PinnedMessagesBannerPresenterTest {
     @Test
     fun `present - loading state`() = runTest {
         val room = FakeMatrixRoom(
-            pinnedEventsTimelineResult = { Result.success(FakeTimeline()) }
+            createTimelineResult = { Result.success(FakeTimeline()) }
         ).apply {
             givenRoomInfo(aRoomInfo(pinnedEventIds = listOf(AN_EVENT_ID)))
         }
         val presenter = createPinnedMessagesBannerPresenter(room = room)
         presenter.test {
-            skipItems(1)
+            skipItems(2)
             val loadingState = awaitItem()
             assertThat(loadingState).isEqualTo(PinnedMessagesBannerState.Loading(1))
             assertThat(loadingState.pinnedMessagesCount()).isEqualTo(1)
@@ -92,13 +86,13 @@ class PinnedMessagesBannerPresenterTest {
             )
         )
         val room = FakeMatrixRoom(
-            pinnedEventsTimelineResult = { Result.success(pinnedEventsTimeline) }
+            createTimelineResult = { Result.success(pinnedEventsTimeline) }
         ).apply {
             givenRoomInfo(aRoomInfo(pinnedEventIds = listOf(AN_EVENT_ID, AN_EVENT_ID_2)))
         }
         val presenter = createPinnedMessagesBannerPresenter(room = room)
         presenter.test {
-            skipItems(2)
+            skipItems(3)
             val loadedState = awaitItem() as PinnedMessagesBannerState.Loaded
             assertThat(loadedState.currentPinnedMessageIndex).isEqualTo(0)
             assertThat(loadedState.loadedPinnedMessagesCount).isEqualTo(1)
@@ -131,13 +125,13 @@ class PinnedMessagesBannerPresenterTest {
             )
         )
         val room = FakeMatrixRoom(
-            pinnedEventsTimelineResult = { Result.success(pinnedEventsTimeline) }
+            createTimelineResult = { Result.success(pinnedEventsTimeline) }
         ).apply {
             givenRoomInfo(aRoomInfo(pinnedEventIds = listOf(AN_EVENT_ID, AN_EVENT_ID_2)))
         }
         val presenter = createPinnedMessagesBannerPresenter(room = room)
         presenter.test {
-            skipItems(2)
+            skipItems(3)
             awaitItem().also { loadedState ->
                 loadedState as PinnedMessagesBannerState.Loaded
                 assertThat(loadedState.currentPinnedMessageIndex).isEqualTo(1)
@@ -166,13 +160,13 @@ class PinnedMessagesBannerPresenterTest {
     @Test
     fun `present - timeline failed`() = runTest {
         val room = FakeMatrixRoom(
-            pinnedEventsTimelineResult = { Result.failure(Exception()) }
+            createTimelineResult = { Result.failure(Exception()) }
         ).apply {
             givenRoomInfo(aRoomInfo(pinnedEventIds = listOf(AN_EVENT_ID)))
         }
         val presenter = createPinnedMessagesBannerPresenter(room = room)
         presenter.test {
-            skipItems(1)
+            skipItems(2)
             awaitItem().also { loadingState ->
                 assertThat(loadingState).isEqualTo(PinnedMessagesBannerState.Loading(1))
                 assertThat(loadingState.pinnedMessagesCount()).isEqualTo(1)
@@ -192,14 +186,23 @@ class PinnedMessagesBannerPresenterTest {
                 formatLambda = { event -> "${event.content}" }
             )
         ),
-        networkMonitor: NetworkMonitor = FakeNetworkMonitor(),
+        syncService: SyncService = FakeSyncService(),
         isFeatureEnabled: Boolean = true,
     ): PinnedMessagesBannerPresenter {
+        val timelineProvider = PinnedEventsTimelineProvider(
+            room = room,
+            syncService = syncService,
+            featureFlagService = FakeFeatureFlagService(
+                initialState = mapOf(FeatureFlags.PinnedEvents.key to isFeatureEnabled)
+            ),
+            dispatchers = testCoroutineDispatchers(),
+        )
+        timelineProvider.launchIn(backgroundScope)
+
         return PinnedMessagesBannerPresenter(
             room = room,
             itemFactory = itemFactory,
-            isFeatureEnabled = { isFeatureEnabled },
-            networkMonitor = networkMonitor,
+            pinnedEventsTimelineProvider = timelineProvider,
         )
     }
 }

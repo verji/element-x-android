@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.pushproviders.firebase
@@ -19,6 +10,7 @@ package io.element.android.libraries.pushproviders.firebase
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
+import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.push.test.FakePusherSubscriber
 import io.element.android.libraries.pushproviders.api.CurrentUserPushConfig
@@ -56,9 +48,9 @@ class FirebasePushProviderTest {
     }
 
     @Test
-    fun `getCurrentDistributor always return the unique distributor`() = runTest {
+    fun `getCurrentDistributor always returns the unique distributor`() = runTest {
         val firebasePushProvider = createFirebasePushProvider()
-        val result = firebasePushProvider.getCurrentDistributor(FakeMatrixClient())
+        val result = firebasePushProvider.getCurrentDistributor(A_SESSION_ID)
         assertThat(result).isEqualTo(Distributor("Firebase", "Firebase"))
     }
 
@@ -175,15 +167,39 @@ class FirebasePushProviderTest {
         assertThat(result).isEqualTo(CurrentUserPushConfig(FirebaseConfig.PUSHER_HTTP_URL, "aToken"))
     }
 
+    @Test
+    fun `rotateToken invokes the FirebaseTokenRotator`() = runTest {
+        val lambda = lambdaRecorder<Result<Unit>> { Result.success(Unit) }
+        val firebasePushProvider = createFirebasePushProvider(
+            firebaseTokenRotator = FakeFirebaseTokenRotator(lambda),
+        )
+        firebasePushProvider.rotateToken()
+        lambda.assertions().isCalledOnce()
+    }
+
+    @Test
+    fun `canRotateToken should return true`() = runTest {
+        val firebasePushProvider = createFirebasePushProvider()
+        assertThat(firebasePushProvider.canRotateToken()).isTrue()
+    }
+
+    @Test
+    fun `onSessionDeleted should be noop`() = runTest {
+        val firebasePushProvider = createFirebasePushProvider()
+        firebasePushProvider.onSessionDeleted(A_SESSION_ID)
+    }
+
     private fun createFirebasePushProvider(
         firebaseStore: FirebaseStore = InMemoryFirebaseStore(),
         pusherSubscriber: PusherSubscriber = FakePusherSubscriber(),
         isPlayServiceAvailable: IsPlayServiceAvailable = FakeIsPlayServiceAvailable(false),
+        firebaseTokenRotator: FirebaseTokenRotator = FakeFirebaseTokenRotator(),
     ): FirebasePushProvider {
         return FirebasePushProvider(
             firebaseStore = firebaseStore,
             pusherSubscriber = pusherSubscriber,
             isPlayServiceAvailable = isPlayServiceAvailable,
+            firebaseTokenRotator = firebaseTokenRotator,
         )
     }
 }

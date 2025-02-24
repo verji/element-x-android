@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.joinroom.impl
@@ -70,6 +61,7 @@ class JoinRoomViewTest {
         rule.setJoinRoomView(
             aJoinRoomState(
                 contentState = aLoadedContentState(joinAuthorisationStatus = JoinAuthorisationStatus.CanKnock),
+                knockMessage = "Knock knock",
                 eventSink = eventsRecorder,
             ),
         )
@@ -88,7 +80,34 @@ class JoinRoomViewTest {
             ),
         )
         rule.clickOn(CommonStrings.action_ok)
-        eventsRecorder.assertSingle(JoinRoomEvents.ClearError)
+        eventsRecorder.assertSingle(JoinRoomEvents.ClearActionStates)
+    }
+
+    @Test
+    fun `clicking on cancel knock request emit the expected Event`() {
+        val eventsRecorder = EventsRecorder<JoinRoomEvents>()
+        rule.setJoinRoomView(
+            aJoinRoomState(
+                contentState = aLoadedContentState(joinAuthorisationStatus = JoinAuthorisationStatus.IsKnocked),
+                eventSink = eventsRecorder,
+            ),
+        )
+        rule.clickOn(R.string.screen_join_room_cancel_knock_action)
+        eventsRecorder.assertSingle(JoinRoomEvents.CancelKnock(true))
+    }
+
+    @Test
+    fun `clicking on closing Cancel Knock error emits the expected Event`() {
+        val eventsRecorder = EventsRecorder<JoinRoomEvents>()
+        rule.setJoinRoomView(
+            aJoinRoomState(
+                contentState = aLoadedContentState(joinAuthorisationStatus = JoinAuthorisationStatus.IsKnocked),
+                cancelKnockAction = AsyncAction.Failure(Exception("Error")),
+                eventSink = eventsRecorder,
+            ),
+        )
+        rule.clickOn(CommonStrings.action_ok)
+        eventsRecorder.assertSingle(JoinRoomEvents.ClearActionStates)
     }
 
     @Test
@@ -102,7 +121,7 @@ class JoinRoomViewTest {
             ),
         )
         rule.clickOn(CommonStrings.action_ok)
-        eventsRecorder.assertSingle(JoinRoomEvents.ClearError)
+        eventsRecorder.assertSingle(JoinRoomEvents.ClearActionStates)
     }
 
     @Test
@@ -159,7 +178,7 @@ class JoinRoomViewTest {
     }
 
     @Test
-    fun `clicking on Go back when a space is displayed invokes the expected callback`() {
+    fun `clicking on ok when a space is displayed invokes the expected callback`() {
         val eventsRecorder = EventsRecorder<JoinRoomEvents>(expectEvents = false)
         ensureCalledOnce {
             rule.setJoinRoomView(
@@ -169,8 +188,37 @@ class JoinRoomViewTest {
                 ),
                 onBackClick = it
             )
-            rule.clickOn(CommonStrings.action_go_back)
+            rule.clickOn(CommonStrings.action_ok)
         }
+    }
+
+    @Test
+    fun `clicking on ok when user is unauthorized the expected callback`() {
+        val eventsRecorder = EventsRecorder<JoinRoomEvents>(expectEvents = false)
+        ensureCalledOnce {
+            rule.setJoinRoomView(
+                aJoinRoomState(
+                    contentState = aLoadedContentState(),
+                    joinAction = AsyncAction.Failure(JoinRoomFailures.UnauthorizedJoin),
+                    eventSink = eventsRecorder,
+                ),
+                onBackClick = it
+            )
+            rule.clickOn(CommonStrings.action_ok)
+        }
+    }
+
+    @Test
+    fun `clicking on forget when user is banned invokes the expected callback`() {
+        val eventsRecorder = EventsRecorder<JoinRoomEvents>()
+        rule.setJoinRoomView(
+            aJoinRoomState(
+                contentState = aLoadedContentState(joinAuthorisationStatus = JoinAuthorisationStatus.IsBanned(null, null)),
+                eventSink = eventsRecorder,
+            ),
+        )
+        rule.clickOn(R.string.screen_join_room_forget_action)
+        eventsRecorder.assertSingle(JoinRoomEvents.ForgetRoom)
     }
 }
 
@@ -179,6 +227,8 @@ private fun <R : TestRule> AndroidComposeTestRule<R, ComponentActivity>.setJoinR
     onBackClick: () -> Unit = EnsureNeverCalled(),
     onJoinSuccess: () -> Unit = EnsureNeverCalled(),
     onKnockSuccess: () -> Unit = EnsureNeverCalled(),
+    onCancelKnockSuccess: () -> Unit = EnsureNeverCalled(),
+    onForgetSuccess: () -> Unit = EnsureNeverCalled(),
 ) {
     setContent {
         JoinRoomView(
@@ -186,6 +236,8 @@ private fun <R : TestRule> AndroidComposeTestRule<R, ComponentActivity>.setJoinR
             onBackClick = onBackClick,
             onJoinSuccess = onJoinSuccess,
             onKnockSuccess = onKnockSuccess,
+            onForgetSuccess = onForgetSuccess,
+            onCancelKnockSuccess = onCancelKnockSuccess,
         )
     }
 }

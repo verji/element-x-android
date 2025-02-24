@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.eventformatter.impl
@@ -55,7 +46,8 @@ class DefaultPinnedMessagesBannerFormatter @Inject constructor(
         return when (val content = event.content) {
             is MessageContent -> processMessageContents(event, content)
             is StickerContent -> {
-                content.body.prefixWith(CommonStrings.common_sticker)
+                val text = content.body ?: content.filename
+                text.prefixWith(CommonStrings.common_sticker)
             }
             is UnableToDecryptContent -> {
                 sp.getString(CommonStrings.common_waiting_for_decryption_key)
@@ -85,25 +77,27 @@ class DefaultPinnedMessagesBannerFormatter @Inject constructor(
                 messageType.toPlainText(permalinkParser)
             }
             is VideoMessageType -> {
-                messageType.body.prefixWith(CommonStrings.common_video)
+                messageType.bestDescription.prefixWith(CommonStrings.common_video)
             }
             is ImageMessageType -> {
-                messageType.body.prefixWith(CommonStrings.common_image)
+                messageType.bestDescription.prefixWith(CommonStrings.common_image)
             }
             is StickerMessageType -> {
-                messageType.body.prefixWith(CommonStrings.common_sticker)
+                messageType.bestDescription.prefixWith(CommonStrings.common_sticker)
             }
             is LocationMessageType -> {
                 messageType.body.prefixWith(CommonStrings.common_shared_location)
             }
             is FileMessageType -> {
-                messageType.body.prefixWith(CommonStrings.common_file)
+                messageType.bestDescription.prefixWith(CommonStrings.common_file)
             }
             is AudioMessageType -> {
-                messageType.body.prefixWith(CommonStrings.common_audio)
+                messageType.bestDescription.prefixWith(CommonStrings.common_audio)
             }
             is VoiceMessageType -> {
-                messageType.body.prefixWith(CommonStrings.common_voice_message)
+                // In this case, do not use bestDescription, because the filename is useless, only use the caption if available.
+                messageType.caption?.prefixWith(sp.getString(CommonStrings.common_voice_message))
+                    ?: sp.getString(CommonStrings.common_voice_message)
             }
             is OtherMessageType -> {
                 messageType.body

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="banner_set_up_recovery_submit">"აღდგენის დაყენება"</string>
   <string name="confirm_recovery_key_banner_message">"თქვენი ჩეთების სარეზერვო ასლი ამჟამად არ არის სინქრონიზებული. თქვენ უნდა შეიყვანოთ თქვენი აღდგენის გასაღები, რათა შეინარჩუნოთ წვდომა ჩეთების სარეზერვო ასლზე."</string>
   <string name="confirm_recovery_key_banner_title">"შეიყვანეთ აღდგენის გასაღები"</string>
   <string name="screen_invites_decline_chat_message">"დარწმუნებული ხართ, რომ გსურთ, უარი თქვათ მოწვევაზე %1$s-ში?"</string>
@@ -13,6 +14,7 @@
   <string name="screen_roomlist_a11y_create_message">"ახალი საუბრისა ან ოთახის შექმნა"</string>
   <string name="screen_roomlist_empty_message">"დაიწყეთ ვინმესთვის შეტყობინების გაგზავნით."</string>
   <string name="screen_roomlist_empty_title">"არც ერთი ჩატი ჯერ არაა."</string>
+  <string name="screen_roomlist_filter_invites">"მოწვევები"</string>
   <string name="screen_roomlist_filter_people">"ხალხი"</string>
   <string name="screen_roomlist_main_space_title">"ჩატები"</string>
   <string name="session_verification_banner_message">"როგორც ჩანს, ახალ მოწყობილობას იყენებთ. დაადასტურეთ სხვა მოწყობილობით თქვენს დაშიფრულ შეტყობინებებზე წვდომისთვის."</string>

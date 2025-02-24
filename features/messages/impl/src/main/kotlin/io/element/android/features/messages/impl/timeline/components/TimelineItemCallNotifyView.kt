@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.timeline.components
@@ -40,6 +31,8 @@ import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemCallNotifyContent
+import io.element.android.features.roomcall.api.RoomCallState
+import io.element.android.features.roomcall.api.RoomCallStateProvider
 import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
@@ -50,7 +43,7 @@ import io.element.android.libraries.ui.strings.CommonStrings
 @Composable
 internal fun TimelineItemCallNotifyView(
     event: TimelineItem.Event,
-    isCallOngoing: Boolean,
+    roomCallState: RoomCallState,
     onLongClick: (TimelineItem.Event) -> Unit,
     onJoinCallClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -91,8 +84,11 @@ internal fun TimelineItemCallNotifyView(
                 )
             }
         }
-        if (isCallOngoing) {
-            JoinCallMenuItem(onJoinCallClick)
+        if (roomCallState is RoomCallState.OnGoing) {
+            CallMenuItem(
+                roomCallState = roomCallState,
+                onJoinCallClick = onJoinCallClick,
+            )
         } else {
             Text(
                 text = event.sentTime,
@@ -110,18 +106,14 @@ internal fun TimelineItemCallNotifyView(
 internal fun TimelineItemCallNotifyViewPreview() {
     ElementPreview {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            TimelineItemCallNotifyView(
-                event = aTimelineItemEvent(content = TimelineItemCallNotifyContent()),
-                isCallOngoing = true,
-                onLongClick = {},
-                onJoinCallClick = {},
-            )
-            TimelineItemCallNotifyView(
-                event = aTimelineItemEvent(content = TimelineItemCallNotifyContent()),
-                isCallOngoing = false,
-                onLongClick = {},
-                onJoinCallClick = {},
-            )
+            RoomCallStateProvider().values.forEach { roomCallState ->
+                TimelineItemCallNotifyView(
+                    event = aTimelineItemEvent(content = TimelineItemCallNotifyContent()),
+                    roomCallState = roomCallState,
+                    onLongClick = {},
+                    onJoinCallClick = {},
+                )
+            }
         }
     }
 }

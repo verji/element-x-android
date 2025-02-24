@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.appnav
@@ -23,19 +14,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.bumble.appyx.core.composable.PermanentChild
 import com.bumble.appyx.core.lifecycle.subscribe
 import com.bumble.appyx.core.modality.BuildContext
+import com.bumble.appyx.core.navigation.NavElements
+import com.bumble.appyx.core.navigation.NavKey
 import com.bumble.appyx.core.navigation.model.permanent.PermanentNavModel
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
 import com.bumble.appyx.core.plugin.plugins
 import com.bumble.appyx.navmodel.backstack.BackStack
+import com.bumble.appyx.navmodel.backstack.BackStack.State.ACTIVE
+import com.bumble.appyx.navmodel.backstack.BackStack.State.CREATED
+import com.bumble.appyx.navmodel.backstack.BackStack.State.STASHED
+import com.bumble.appyx.navmodel.backstack.BackStackElement
+import com.bumble.appyx.navmodel.backstack.BackStackElements
+import com.bumble.appyx.navmodel.backstack.operation.BackStackOperation
+import com.bumble.appyx.navmodel.backstack.operation.Push
+import com.bumble.appyx.navmodel.backstack.operation.pop
 import com.bumble.appyx.navmodel.backstack.operation.push
 import com.bumble.appyx.navmodel.backstack.operation.replace
+import com.bumble.appyx.navmodel.backstack.operation.singleTop
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import im.vector.app.features.analytics.plan.JoinedRoom
@@ -49,8 +49,7 @@ import io.element.android.features.createroom.api.CreateRoomEntryPoint
 import io.element.android.features.ftue.api.FtueEntryPoint
 import io.element.android.features.ftue.api.state.FtueService
 import io.element.android.features.ftue.api.state.FtueState
-import io.element.android.features.networkmonitor.api.NetworkMonitor
-import io.element.android.features.networkmonitor.api.NetworkStatus
+import io.element.android.features.logout.api.LogoutEntryPoint
 import io.element.android.features.preferences.api.PreferencesEntryPoint
 import io.element.android.features.roomdirectory.api.RoomDescription
 import io.element.android.features.roomdirectory.api.RoomDirectoryEntryPoint
@@ -58,6 +57,7 @@ import io.element.android.features.roomlist.api.RoomListEntryPoint
 import io.element.android.features.securebackup.api.SecureBackupEntryPoint
 import io.element.android.features.share.api.ShareEntryPoint
 import io.element.android.features.userprofile.api.UserProfileEntryPoint
+import io.element.android.features.verifysession.api.IncomingVerificationEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.createNode
@@ -73,18 +73,17 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
-import io.element.android.libraries.matrix.api.sync.SyncState
+import io.element.android.libraries.matrix.api.verification.SessionVerificationRequestDetails
+import io.element.android.libraries.matrix.api.verification.SessionVerificationServiceListener
 import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
 import java.util.Optional
+import java.util.UUID
 
 @ContributesNode(SessionScope::class)
 class LoggedInFlowNode @AssistedInject constructor(
@@ -98,12 +97,13 @@ class LoggedInFlowNode @AssistedInject constructor(
     private val userProfileEntryPoint: UserProfileEntryPoint,
     private val ftueEntryPoint: FtueEntryPoint,
     private val coroutineScope: CoroutineScope,
-    private val networkMonitor: NetworkMonitor,
     private val ftueService: FtueService,
     private val roomDirectoryEntryPoint: RoomDirectoryEntryPoint,
     private val shareEntryPoint: ShareEntryPoint,
     private val matrixClient: MatrixClient,
     private val sendingQueue: SendQueues,
+    private val logoutEntryPoint: LogoutEntryPoint,
+    private val incomingVerificationEntryPoint: IncomingVerificationEntryPoint,
     snackbarDispatcher: SnackbarDispatcher,
 ) : BaseFlowNode<LoggedInFlowNode.NavTarget>(
     backstack = BackStack(
@@ -121,20 +121,27 @@ class LoggedInFlowNode @AssistedInject constructor(
         fun onOpenBugReport()
     }
 
-    private val syncService = matrixClient.syncService()
     private val loggedInFlowProcessor = LoggedInEventProcessor(
         snackbarDispatcher,
         matrixClient.roomMembershipObserver(),
     )
 
+    private val verificationListener = object : SessionVerificationServiceListener {
+        override fun onIncomingSessionRequest(sessionVerificationRequestDetails: SessionVerificationRequestDetails) {
+            backstack.singleTop(NavTarget.IncomingVerificationRequest(sessionVerificationRequestDetails))
+        }
+    }
+
     override fun onBuilt() {
         super.onBuilt()
+
         lifecycle.subscribe(
             onCreate = {
                 appNavigationStateService.onNavigateToSession(id, matrixClient.sessionId)
                 // TODO We do not support Space yet, so directly navigate to main space
                 appNavigationStateService.onNavigateToSpace(id, MAIN_SPACE)
                 loggedInFlowProcessor.observeEvents(coroutineScope)
+                matrixClient.sessionVerificationService().setListener(verificationListener)
 
                 ftueService.state
                     .onEach { ftueState ->
@@ -146,45 +153,18 @@ class LoggedInFlowNode @AssistedInject constructor(
                     }
                     .launchIn(lifecycleScope)
             },
-            onStop = {
-                coroutineScope.launch {
-                    // Counterpart startSync is done in observeSyncStateAndNetworkStatus method.
-                    syncService.stopSync()
-                }
-            },
             onDestroy = {
                 appNavigationStateService.onLeavingSpace(id)
                 appNavigationStateService.onLeavingSession(id)
                 loggedInFlowProcessor.stopObserving()
+                matrixClient.sessionVerificationService().setListener(null)
             }
         )
-        observeSyncStateAndNetworkStatus()
         setupSendingQueue()
     }
 
     private fun setupSendingQueue() {
         sendingQueue.launchIn(lifecycleScope)
-    }
-
-    @OptIn(FlowPreview::class)
-    private fun observeSyncStateAndNetworkStatus() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(
-                    // small debounce to avoid spamming startSync when the state is changing quickly in case of error.
-                    syncService.syncState.debounce(100),
-                    networkMonitor.connectivity
-                ) { syncState, networkStatus ->
-                    Pair(syncState, networkStatus)
-                }
-                    .collect { (syncState, networkStatus) ->
-                        Timber.d("Sync state: $syncState, network status: $networkStatus")
-                        if (syncState != SyncState.Running && networkStatus == NetworkStatus.Online) {
-                            syncService.startSync()
-                        }
-                    }
-            }
-        }
     }
 
     sealed interface NavTarget : Parcelable {
@@ -203,7 +183,8 @@ class LoggedInFlowNode @AssistedInject constructor(
             val serverNames: List<String> = emptyList(),
             val trigger: JoinedRoom.Trigger? = null,
             val roomDescription: RoomDescription? = null,
-            val initialElement: RoomNavigationTarget = RoomNavigationTarget.Messages()
+            val initialElement: RoomNavigationTarget = RoomNavigationTarget.Messages(),
+            val targetId: UUID = UUID.randomUUID(),
         ) : NavTarget
 
         @Parcelize
@@ -232,6 +213,12 @@ class LoggedInFlowNode @AssistedInject constructor(
 
         @Parcelize
         data class IncomingShare(val intent: Intent) : NavTarget
+
+        @Parcelize
+        data object LogoutForNativeSlidingSyncMigrationNeeded : NavTarget
+
+        @Parcelize
+        data class IncomingVerificationRequest(val data: SessionVerificationRequestDetails) : NavTarget
     }
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
@@ -260,7 +247,7 @@ class LoggedInFlowNode @AssistedInject constructor(
                     }
 
                     override fun onSetUpRecoveryClick() {
-                        backstack.push(NavTarget.SecureBackup(initialElement = SecureBackupEntryPoint.InitialTarget.SetUpRecovery))
+                        backstack.push(NavTarget.SecureBackup(initialElement = SecureBackupEntryPoint.InitialTarget.Root))
                     }
 
                     override fun onSessionConfirmRecoveryKeyClick() {
@@ -278,6 +265,10 @@ class LoggedInFlowNode @AssistedInject constructor(
                     override fun onRoomDirectorySearchClick() {
                         backstack.push(NavTarget.RoomDirectorySearch)
                     }
+
+                    override fun onLogoutForNativeSlidingSyncMigrationNeeded() {
+                        backstack.push(NavTarget.LogoutForNativeSlidingSyncMigrationNeeded)
+                    }
                 }
                 roomListEntryPoint
                     .nodeBuilder(this, buildContext)
@@ -291,24 +282,27 @@ class LoggedInFlowNode @AssistedInject constructor(
                     }
 
                     override fun onForwardedToSingleRoom(roomId: RoomId) {
-                        coroutineScope.launch { attachRoom(roomId.toRoomIdOrAlias()) }
+                        coroutineScope.launch { attachRoom(roomId.toRoomIdOrAlias(), clearBackstack = false) }
                     }
 
-                    override fun onPermalinkClick(data: PermalinkData) {
+                    override fun onPermalinkClick(data: PermalinkData, pushToBackstack: Boolean) {
                         when (data) {
                             is PermalinkData.UserLink -> {
                                 // Should not happen (handled by MessagesNode)
                                 Timber.e("User link clicked: ${data.userId}.")
                             }
                             is PermalinkData.RoomLink -> {
-                                backstack.push(
-                                    NavTarget.Room(
-                                        roomIdOrAlias = data.roomIdOrAlias,
-                                        serverNames = data.viaParameters,
-                                        trigger = JoinedRoom.Trigger.Timeline,
-                                        initialElement = RoomNavigationTarget.Messages(data.eventId),
-                                    )
+                                val target = NavTarget.Room(
+                                    roomIdOrAlias = data.roomIdOrAlias,
+                                    serverNames = data.viaParameters,
+                                    trigger = JoinedRoom.Trigger.Timeline,
+                                    initialElement = RoomNavigationTarget.Messages(data.eventId),
                                 )
+                                if (pushToBackstack) {
+                                    backstack.push(target)
+                                } else {
+                                    backstack.replace(target)
+                                }
                             }
                             is PermalinkData.FallbackLink,
                             is PermalinkData.RoomEmailInviteLink -> {
@@ -376,6 +370,11 @@ class LoggedInFlowNode @AssistedInject constructor(
             is NavTarget.SecureBackup -> {
                 secureBackupEntryPoint.nodeBuilder(this, buildContext)
                     .params(SecureBackupEntryPoint.Params(initialElement = navTarget.initialElement))
+                    .callback(object : SecureBackupEntryPoint.Callback {
+                        override fun onDone() {
+                            backstack.pop()
+                        }
+                    })
                     .build()
             }
             NavTarget.Ftue -> {
@@ -411,6 +410,27 @@ class LoggedInFlowNode @AssistedInject constructor(
                     .params(ShareEntryPoint.Params(intent = navTarget.intent))
                     .build()
             }
+            is NavTarget.LogoutForNativeSlidingSyncMigrationNeeded -> {
+                val callback = object : LogoutEntryPoint.Callback {
+                    override fun onChangeRecoveryKeyClick() {
+                        backstack.push(NavTarget.SecureBackup())
+                    }
+                }
+
+                logoutEntryPoint.nodeBuilder(this, buildContext)
+                    .callback(callback)
+                    .build()
+            }
+            is NavTarget.IncomingVerificationRequest -> {
+                incomingVerificationEntryPoint.nodeBuilder(this, buildContext)
+                    .params(IncomingVerificationEntryPoint.Params(navTarget.data))
+                    .callback(object : IncomingVerificationEntryPoint.Callback {
+                        override fun onDone() {
+                            backstack.pop()
+                        }
+                    })
+                    .build()
+            }
         }
     }
 
@@ -419,21 +439,21 @@ class LoggedInFlowNode @AssistedInject constructor(
         serverNames: List<String> = emptyList(),
         trigger: JoinedRoom.Trigger? = null,
         eventId: EventId? = null,
+        clearBackstack: Boolean,
     ) {
         waitForNavTargetAttached { navTarget ->
             navTarget is NavTarget.RoomList
         }
         attachChild<RoomFlowNode> {
-            backstack.push(
-                NavTarget.Room(
-                    roomIdOrAlias = roomIdOrAlias,
-                    serverNames = serverNames,
-                    trigger = trigger,
-                    initialElement = RoomNavigationTarget.Messages(
-                        focusedEventId = eventId
-                    )
+            val roomNavTarget = NavTarget.Room(
+                roomIdOrAlias = roomIdOrAlias,
+                serverNames = serverNames,
+                trigger = trigger,
+                initialElement = RoomNavigationTarget.Messages(
+                    focusedEventId = eventId
                 )
             )
+            backstack.accept(AttachRoomOperation(roomNavTarget, clearBackstack))
         }
     }
 
@@ -477,4 +497,32 @@ class LoggedInFlowNode @AssistedInject constructor(
         @Assisted buildContext: BuildContext,
         @Assisted plugins: List<Plugin>,
     ) : Node(buildContext, plugins = plugins)
+}
+
+@Parcelize
+private class AttachRoomOperation(
+    val roomTarget: LoggedInFlowNode.NavTarget.Room,
+    val clearBackstack: Boolean,
+) : BackStackOperation<LoggedInFlowNode.NavTarget> {
+    override fun isApplicable(elements: NavElements<LoggedInFlowNode.NavTarget, BackStack.State>) = true
+
+    override fun invoke(elements: BackStackElements<LoggedInFlowNode.NavTarget>): BackStackElements<LoggedInFlowNode.NavTarget> {
+        return if (clearBackstack) {
+            // Makes sure the room list target is alone in the backstack and stashed
+            elements.mapNotNull { element ->
+                if (element.key.navTarget == LoggedInFlowNode.NavTarget.RoomList) {
+                    element.transitionTo(STASHED, this)
+                } else {
+                    null
+                }
+            } + BackStackElement(
+                key = NavKey(roomTarget),
+                fromState = CREATED,
+                targetState = ACTIVE,
+                operation = this
+            )
+        } else {
+            Push<LoggedInFlowNode.NavTarget>(roomTarget).invoke(elements)
+        }
+    }
 }

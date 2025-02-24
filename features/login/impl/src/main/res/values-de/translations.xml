@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="screen_account_provider_change">"Kontoanbieter ändern"</string>
+  <string name="screen_account_provider_change">"Kontoanbieter wechseln"</string>
   <string name="screen_account_provider_form_hint">"Homeserver-Adresse"</string>
   <string name="screen_account_provider_form_notice">"Gib einen Suchbegriff oder eine Domainadresse ein."</string>
   <string name="screen_account_provider_form_subtitle">"Suche nach einem Unternehmen, einer Community oder einem privaten Server."</string>
@@ -21,12 +21,13 @@
   <string name="screen_change_server_form_notice">"Du kannst nur eine Verbindung zu einem vorhandenen Server herstellen, der Sliding Sync unterstützt. Dein Homeserver-Administrator muss das konfigurieren. %1$s"</string>
   <string name="screen_change_server_subtitle">"Wie lautet die Adresse deines Servers?"</string>
   <string name="screen_change_server_title">"Wähle deinen Server aus"</string>
+  <string name="screen_create_account_title">"Konto erstellen"</string>
   <string name="screen_login_error_deactivated_account">"Dieses Konto wurde deaktiviert."</string>
   <string name="screen_login_error_invalid_credentials">"Falscher Benutzername und/oder Passwort"</string>
   <string name="screen_login_error_invalid_user_id">"Dies ist keine gültige Benutzerkennung. Erwartetes Format: \'@user:homeserver.org\'"</string>
   <string name="screen_login_error_refresh_tokens">"Dieser Server ist so konfiguriert, dass er Refresh-Tokens verwendet. Diese werden für die passwortbasierte Anmeldung nicht unterstützt."</string>
   <string name="screen_login_error_unsupported_authentication">"Der ausgewählte Homeserver unterstützt weder den Login per Passwort noch per OIDC. Bitte kontaktiere deinen Administrator oder wähle einen anderen Homeserver."</string>
-  <string name="screen_login_form_header">"Gebe deine Daten ein"</string>
+  <string name="screen_login_form_header">"Gib deine Daten ein"</string>
   <string name="screen_login_subtitle">"Matrix ist ein offenes Netzwerk für eine sichere, dezentrale Kommunikation."</string>
   <string name="screen_login_title">"Willkommen zurück!"</string>
   <string name="screen_login_title_with_homeserver">"Anmelden bei %1$s"</string>
@@ -59,6 +60,7 @@ Versuche, dich manuell anzumelden, oder scanne den QR-Code mit einem anderen Ger
   <string name="screen_qr_code_login_initial_state_item_3">"Wähle %1$s"</string>
   <string name="screen_qr_code_login_initial_state_item_3_action">"\"Neues Gerät verknüpfen\""</string>
   <string name="screen_qr_code_login_initial_state_item_4">"Scanne den QR-Code mit diesem Gerät"</string>
+  <string name="screen_qr_code_login_initial_state_subtitle">"Nur verfügbar für den Fall dass Ihr Kontoanbieter dies unterstützt."</string>
   <string name="screen_qr_code_login_initial_state_title">"Öffne %1$s auf einem anderen Gerät, um den QR-Code zu erhalten"</string>
   <string name="screen_qr_code_login_invalid_scan_state_description">"Verwende den QR-Code, der auf dem anderen Gerät angezeigt wird."</string>
   <string name="screen_qr_code_login_invalid_scan_state_retry_button">"Erneut versuchen"</string>
@@ -78,10 +80,4 @@ Versuche, dich manuell anzumelden, oder scanne den QR-Code mit einem anderen Ger
   <string name="screen_server_confirmation_message_register">"Hier werden deine Gespräche gespeichert - so wie du deine E-Mails bei einem E-Mail-Anbieter aufbewahren würden."</string>
   <string name="screen_server_confirmation_title_login">"Du bist dabei, dich bei %1$s anzumelden"</string>
   <string name="screen_server_confirmation_title_register">"Du bist dabei, ein Konto auf %1$s zu erstellen"</string>
-  <string name="screen_waitlist_message">"Derzeit besteht eine hohe Nachfrage nach %1$s auf %2$s. Kehre in ein paar Tagen zur App zurück und versuche es erneut.
-
-Danke für deine Geduld!"</string>
-  <string name="screen_waitlist_message_success">"Willkommen bei %1$s!"</string>
-  <string name="screen_waitlist_title">"Du bist fast am Ziel."</string>
-  <string name="screen_waitlist_title_success">"Du bist dabei."</string>
 </resources>

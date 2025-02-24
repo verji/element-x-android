@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.pushstore.impl.clientsecret
@@ -19,7 +10,6 @@ package io.element.android.libraries.pushstore.impl.clientsecret
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.pushstore.test.userpushstore.clientsecret.InMemoryPushClientSecretStore
-import io.element.android.libraries.sessionstorage.test.observer.NoOpSessionObserver
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -33,11 +23,10 @@ internal class DefaultPushClientSecretTest {
     fun test() = runTest {
         val factory = FakePushClientSecretFactory()
         val store = InMemoryPushClientSecretStore()
-        val sut = DefaultPushClientSecret(factory, store, NoOpSessionObserver())
+        val sut = DefaultPushClientSecret(factory, store)
 
         val secret0 = factory.getSecretForUser(0)
         val secret1 = factory.getSecretForUser(1)
-        val secret2 = factory.getSecretForUser(2)
 
         assertThat(store.getSecrets()).isEmpty()
         assertThat(sut.getUserIdFromSecret(secret0)).isNull()
@@ -57,16 +46,10 @@ internal class DefaultPushClientSecretTest {
         // Unknown secret
         assertThat(sut.getUserIdFromSecret(A_UNKNOWN_SECRET)).isNull()
 
-        // User signs out
-        sut.onSessionDeleted(A_USER_ID_0.value)
-        assertThat(store.getSecrets()).hasSize(1)
-        // Create a new secret after reset
-        assertThat(sut.getSecretForUser(A_USER_ID_0)).isEqualTo(secret2)
-
         // Check the store content
         assertThat(store.getSecrets()).isEqualTo(
             mapOf(
-                A_USER_ID_0 to secret2,
+                A_USER_ID_0 to secret0,
                 A_USER_ID_1 to secret1,
             )
         )

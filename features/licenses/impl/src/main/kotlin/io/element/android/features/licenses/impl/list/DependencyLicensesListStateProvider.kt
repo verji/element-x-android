@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.licenses.impl.list
@@ -20,26 +11,47 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import io.element.android.features.licenses.impl.model.DependencyLicenseItem
 import io.element.android.features.licenses.impl.model.License
 import io.element.android.libraries.architecture.AsyncData
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 open class DependencyLicensesListStateProvider : PreviewParameterProvider<DependencyLicensesListState> {
     override val values: Sequence<DependencyLicensesListState>
         get() = sequenceOf(
-            DependencyLicensesListState(
+            aDependencyLicensesListState(
                 licenses = AsyncData.Loading()
             ),
-            DependencyLicensesListState(
+            aDependencyLicensesListState(
                 licenses = AsyncData.Failure(Exception("Failed to load licenses"))
             ),
-            DependencyLicensesListState(
+            aDependencyLicensesListState(
                 licenses = AsyncData.Success(
                     persistentListOf(
                         aDependencyLicenseItem(),
                         aDependencyLicenseItem(name = null),
                     )
                 )
-            )
+            ),
+            aDependencyLicensesListState(
+                licenses = AsyncData.Success(
+                    persistentListOf(
+                        aDependencyLicenseItem(),
+                        aDependencyLicenseItem(name = null),
+                    )
+                ),
+                filter = "a filter",
+            ),
         )
+}
+
+private fun aDependencyLicensesListState(
+    licenses: AsyncData<ImmutableList<DependencyLicenseItem>>,
+    filter: String = "",
+): DependencyLicensesListState {
+    return DependencyLicensesListState(
+        licenses = licenses,
+        filter = filter,
+        eventSink = {},
+    )
 }
 
 internal fun aDependencyLicenseItem(

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.appnav.loggedin
@@ -23,20 +14,23 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import im.vector.app.features.analytics.plan.CryptoSessionStateChange
 import im.vector.app.features.analytics.plan.UserProperties
-import io.element.android.features.networkmonitor.api.NetworkStatus
-import io.element.android.features.networkmonitor.test.FakeNetworkMonitor
+import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
+import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
+import io.element.android.libraries.matrix.api.sync.SyncState
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
 import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatus
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.FakeMatrixClient
+import io.element.android.libraries.matrix.test.core.aBuildMeta
 import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
 import io.element.android.libraries.matrix.test.roomlist.FakeRoomListService
+import io.element.android.libraries.matrix.test.sync.FakeSyncService
 import io.element.android.libraries.matrix.test.verification.FakeSessionVerificationService
 import io.element.android.libraries.push.api.PushService
 import io.element.android.libraries.push.test.FakePushService
@@ -51,6 +45,9 @@ import io.element.android.tests.testutils.lambda.any
 import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -75,7 +72,7 @@ class LoggedInPresenterTest {
     @Test
     fun `present - show sync spinner`() = runTest {
         val roomListService = FakeRoomListService()
-        val presenter = createLoggedInPresenter(roomListService, NetworkStatus.Online)
+        val presenter = createLoggedInPresenter(roomListService, SyncState.Running)
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
         }.test {
@@ -94,13 +91,15 @@ class LoggedInPresenterTest {
         val roomListService = FakeRoomListService()
         val verificationService = FakeSessionVerificationService()
         val encryptionService = FakeEncryptionService()
+        val buildMeta = aBuildMeta()
         val presenter = LoggedInPresenter(
             matrixClient = FakeMatrixClient(roomListService = roomListService, encryptionService = encryptionService),
-            networkMonitor = FakeNetworkMonitor(NetworkStatus.Online),
+            syncService = FakeSyncService(initialSyncState = SyncState.Running),
             pushService = FakePushService(),
             sessionVerificationService = verificationService,
             analyticsService = analyticsService,
-            encryptionService = encryptionService
+            encryptionService = encryptionService,
+            buildMeta = buildMeta,
         )
         moleculeFlow(RecompositionMode.Immediate) {
             presenter.present()
@@ -380,7 +379,7 @@ class LoggedInPresenterTest {
         val lambda = lambdaRecorder<MatrixClient, PushProvider, Distributor, Result<Unit>> { _, _, _ ->
             Result.success(Unit)
         }
-        val selectPushProviderLambda = lambdaRecorder<MatrixClient, PushProvider, Unit> { _, _ -> }
+        val selectPushProviderLambda = lambdaRecorder<SessionId, PushProvider, Unit> { _, _ -> }
         val sessionVerificationService = FakeSessionVerificationService(
             initialSessionVerifiedStatus = SessionVerifiedStatus.Verified
         )
@@ -410,8 +409,8 @@ class LoggedInPresenterTest {
             selectPushProviderLambda.assertions()
                 .isCalledOnce()
                 .with(
-                    // MatrixClient
-                    any(),
+                    // SessionId
+                    value(A_SESSION_ID),
                     // PushProvider
                     value(pushProvider),
                 )
@@ -480,10 +479,10 @@ class LoggedInPresenterTest {
             distributors = listOf(Distributor("aDistributorValue1", "aDistributorName1")),
             currentDistributor = { null },
         ),
-        registerWithLambda: suspend (MatrixClient, PushProvider, Distributor) -> Result<Unit> = { _, _, _ ->
+        registerWithLambda: (MatrixClient, PushProvider, Distributor) -> Result<Unit> = { _, _, _ ->
             Result.success(Unit)
         },
-        selectPushProviderLambda: (MatrixClient, PushProvider) -> Unit = { _, _ -> lambdaError() },
+        selectPushProviderLambda: (SessionId, PushProvider) -> Unit = { _, _ -> lambdaError() },
         currentPushProvider: () -> PushProvider? = { null },
         setIgnoreRegistrationErrorLambda: (SessionId, Boolean) -> Unit = { _, _ -> lambdaError() },
     ): PushService {
@@ -496,26 +495,77 @@ class LoggedInPresenterTest {
         )
     }
 
+    @Test
+    fun `present - CheckSlidingSyncProxyAvailability forces the sliding sync migration under the right circumstances`() = runTest {
+        // The migration will be forced if:
+        // - The user is not using the native sliding sync
+        // - The sliding sync proxy is no longer supported
+        // - The native sliding sync is supported
+        val matrixClient = FakeMatrixClient(
+            currentSlidingSyncVersionLambda = { Result.success(SlidingSyncVersion.Proxy) },
+            availableSlidingSyncVersionsLambda = { Result.success(listOf(SlidingSyncVersion.Native)) },
+        )
+        val presenter = createLoggedInPresenter(matrixClient = matrixClient)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            assertThat(initialState.forceNativeSlidingSyncMigration).isFalse()
+
+            initialState.eventSink(LoggedInEvents.CheckSlidingSyncProxyAvailability)
+
+            assertThat(awaitItem().forceNativeSlidingSyncMigration).isTrue()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `present - LogoutAndMigrateToNativeSlidingSync logs out the user`() = runTest {
+        val logoutLambda = lambdaRecorder<Boolean, Boolean, String?> { userInitiated, ignoreSdkError ->
+            assertThat(userInitiated).isTrue()
+            assertThat(ignoreSdkError).isTrue()
+            null
+        }
+        val matrixClient = FakeMatrixClient().apply {
+            this.logoutLambda = logoutLambda
+        }
+        val presenter = createLoggedInPresenter(matrixClient = matrixClient)
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+
+            initialState.eventSink(LoggedInEvents.LogoutAndMigrateToNativeSlidingSync)
+
+            advanceUntilIdle()
+
+            assertThat(logoutLambda.assertions().isCalledOnce())
+        }
+    }
+
     private suspend fun <T> ReceiveTurbine<T>.awaitFirstItem(): T {
         skipItems(1)
         return awaitItem()
     }
 
-    private fun createLoggedInPresenter(
+    private fun TestScope.createLoggedInPresenter(
         roomListService: RoomListService = FakeRoomListService(),
-        networkStatus: NetworkStatus = NetworkStatus.Offline,
+        syncState: SyncState = SyncState.Running,
         analyticsService: AnalyticsService = FakeAnalyticsService(),
         sessionVerificationService: SessionVerificationService = FakeSessionVerificationService(),
         encryptionService: EncryptionService = FakeEncryptionService(),
         pushService: PushService = FakePushService(),
+        matrixClient: MatrixClient = FakeMatrixClient(roomListService = roomListService),
+        buildMeta: BuildMeta = aBuildMeta(),
     ): LoggedInPresenter {
         return LoggedInPresenter(
-            matrixClient = FakeMatrixClient(roomListService = roomListService),
-            networkMonitor = FakeNetworkMonitor(networkStatus),
+            matrixClient = matrixClient,
+            syncService = FakeSyncService(initialSyncState = syncState),
             pushService = pushService,
             sessionVerificationService = sessionVerificationService,
             analyticsService = analyticsService,
-            encryptionService = encryptionService
+            encryptionService = encryptionService,
+            buildMeta = buildMeta,
         )
     }
 }

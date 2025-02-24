@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.login.impl.screens.qrcode.intro
@@ -39,7 +30,6 @@ import io.element.android.libraries.designsystem.theme.components.Button
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.utils.annotatedTextWithBold
 import io.element.android.libraries.permissions.api.PermissionsView
-import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 
 @Composable
@@ -60,6 +50,7 @@ fun QrCodeIntroView(
         onBackClick = onBackClick,
         iconStyle = BigIcon.Style.Default(CompoundIcons.Computer()),
         title = stringResource(id = R.string.screen_qr_code_login_initial_state_title, state.desktopAppName),
+        subTitle = stringResource(id = R.string.screen_qr_code_login_initial_state_subtitle),
         content = { Content(state = state) },
         buttons = { Buttons(state = state) }
     )
@@ -96,7 +87,7 @@ private fun ColumnScope.Buttons(
     state: QrCodeIntroState,
 ) {
     Button(
-        text = stringResource(id = CommonStrings.action_continue),
+        text = stringResource(id = R.string.screen_qr_code_login_initial_state_button_title),
         modifier = Modifier.fillMaxWidth(),
         onClick = {
             state.eventSink.invoke(QrCodeIntroEvents.Continue)

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.preferences.impl.developer
@@ -23,8 +14,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import io.element.android.features.preferences.impl.R
+import io.element.android.features.preferences.impl.developer.tracing.LogLevelItem
 import io.element.android.features.rageshake.api.preferences.RageshakePreferencesView
 import io.element.android.libraries.designsystem.components.preferences.PreferenceCategory
+import io.element.android.libraries.designsystem.components.preferences.PreferenceDropdown
 import io.element.android.libraries.designsystem.components.preferences.PreferencePage
 import io.element.android.libraries.designsystem.components.preferences.PreferenceSwitch
 import io.element.android.libraries.designsystem.components.preferences.PreferenceText
@@ -34,12 +27,12 @@ import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.featureflag.ui.FeatureListView
 import io.element.android.libraries.featureflag.ui.model.FeatureUiModel
 import io.element.android.libraries.ui.strings.CommonStrings
+import kotlinx.collections.immutable.toPersistentList
 
 @Composable
 fun DeveloperSettingsView(
     state: DeveloperSettingsState,
     onOpenShowkase: () -> Unit,
-    onOpenConfigureTracing: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -49,24 +42,22 @@ fun DeveloperSettingsView(
         title = stringResource(id = CommonStrings.common_developer_options)
     ) {
         // Note: this is OK to hardcode strings in this debug screen.
+        SettingsCategory(state)
         PreferenceCategory(
             title = "Feature flags",
-            showTopDivider = false,
+            showTopDivider = true,
         ) {
             FeatureListContent(state)
         }
         ElementCallCategory(state = state)
         PreferenceCategory(title = "Rust SDK") {
-            PreferenceText(
-                title = "Configure tracing",
-                onClick = onOpenConfigureTracing,
-            )
-            PreferenceSwitch(
-                title = "Enable Simplified Sliding Sync",
-                subtitle = "When toggled you'll be logged out of the app and will need to log in again.",
-                isChecked = state.isSimpleSlidingSyncEnabled,
-                onCheckedChange = {
-                    state.eventSink(DeveloperSettingsEvents.SetSimplifiedSlidingSyncEnabled(it))
+            PreferenceDropdown(
+                title = "Tracing log level",
+                supportingText = "Requires app reboot",
+                selectedOption = state.tracingLogLevel.dataOrNull(),
+                options = LogLevelItem.entries.toPersistentList(),
+                onSelectOption = { logLevel ->
+                     state.eventSink(DeveloperSettingsEvents.SetTracingLogLevel(logLevel))
                 }
             )
         }
@@ -102,6 +93,22 @@ fun DeveloperSettingsView(
 }
 
 @Composable
+private fun SettingsCategory(
+    state: DeveloperSettingsState,
+) {
+    PreferenceCategory(title = "Preferences", showTopDivider = false) {
+        PreferenceSwitch(
+            title = "Hide image & video previews",
+            subtitle = "When toggled image & video will not render in the timeline by default.",
+            isChecked = state.hideImagesAndVideos,
+            onCheckedChange = {
+                state.eventSink(DeveloperSettingsEvents.SetHideImagesAndVideos(it))
+            }
+        )
+    }
+}
+
+@Composable
 private fun ElementCallCategory(
     state: DeveloperSettingsState,
 ) {
@@ -123,7 +130,7 @@ private fun ElementCallCategory(
             validation = callUrlState.validator,
             onValidationErrorMessage = stringResource(R.string.screen_advanced_settings_element_call_base_url_validation_error),
             displayValue = { value -> !isUsingDefaultUrl(value) },
-            keyboardOptions = KeyboardOptions.Default.copy(autoCorrect = false, keyboardType = KeyboardType.Uri),
+            keyboardOptions = KeyboardOptions.Default.copy(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri),
             onChange = { state.eventSink(DeveloperSettingsEvents.SetCustomElementCallBaseUrl(it)) }
         )
     }
@@ -149,7 +156,6 @@ internal fun DeveloperSettingsViewPreview(@PreviewParameter(DeveloperSettingsSta
     DeveloperSettingsView(
         state = state,
         onOpenShowkase = {},
-        onOpenConfigureTracing = {},
         onBackClick = {}
     )
 }

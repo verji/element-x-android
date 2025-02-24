@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="banner_set_up_recovery_submit">"Configurar a recuperação"</string>
+  <string name="confirm_recovery_key_banner_secondary_button_title">"Esqueceu sua chave de recuperação?"</string>
   <string name="confirm_recovery_key_banner_title">"Insira sua chave de recuperação"</string>
   <string name="screen_invites_decline_chat_message">"Tem certeza de que deseja recusar o convite para ingressar em %1$s?"</string>
   <string name="screen_invites_decline_chat_title">"Recusar convite"</string>
@@ -14,6 +16,7 @@
   <string name="screen_roomlist_empty_title">"Ainda não há conversas."</string>
   <string name="screen_roomlist_filter_favourites">"Favoritos"</string>
   <string name="screen_roomlist_filter_favourites_empty_state_title">"Você não tem nenhuma conversa favorita ainda"</string>
+  <string name="screen_roomlist_filter_invites">"Convites"</string>
   <string name="screen_roomlist_filter_low_priority">"Baixa prioridade"</string>
   <string name="screen_roomlist_filter_mixed_empty_state_title">"Você não tem conversas para esta seleção"</string>
   <string name="screen_roomlist_filter_people">"Pessoas"</string>

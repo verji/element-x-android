@@ -31,6 +31,7 @@
   <string name="screen_room_timeline_add_reaction">"Lisa emotikon"</string>
   <string name="screen_room_timeline_beginning_of_room">"See on %1$s jututoa algus."</string>
   <string name="screen_room_timeline_beginning_of_room_no_name">"See on antud vestluse algus."</string>
+  <string name="screen_room_timeline_legacy_call">"Kõne pole nende rakenduste vahel toetatud. Palun küsi teiselt osapoolelt, kas ta oleks nõus kasutama Element X rakendust."</string>
   <string name="screen_room_timeline_less_reactions">"Näita vähem"</string>
   <string name="screen_room_timeline_message_copied">"Sõnum on kopeeritud"</string>
   <string name="screen_room_timeline_no_permission_to_post">"Sul pole õigusi siia jututuppa kirjutada"</string>
@@ -42,8 +43,8 @@
     <item quantity="other">"%1$d jututoa muudatust"</item>
   </plurals>
   <plurals name="screen_room_typing_many_members">
-    <item quantity="one">"%1$s, %2$s ja veel %3$d huviline"</item>
-    <item quantity="other">"%1$s, %2$s ja veel %3$d huvilist"</item>
+    <item quantity="one">"%1$s, %2$s ja veel %3$d osaleja"</item>
+    <item quantity="other">"%1$s, %2$s ja veel %3$d osalejat"</item>
   </plurals>
   <plurals name="screen_room_typing_notification">
     <item quantity="one">"%1$s kirjutab"</item>

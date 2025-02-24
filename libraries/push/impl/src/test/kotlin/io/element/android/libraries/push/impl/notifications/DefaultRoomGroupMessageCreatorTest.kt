@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.push.impl.notifications
@@ -20,10 +11,15 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.google.common.truth.Truth.assertThat
+import io.element.android.appconfig.NotificationConfig
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.test.A_ROOM_ID
+import io.element.android.libraries.matrix.test.A_TIMESTAMP
 import io.element.android.libraries.matrix.ui.components.aMatrixUser
+import io.element.android.libraries.matrix.ui.media.AVATAR_THUMBNAIL_SIZE_IN_PIXEL
 import io.element.android.libraries.matrix.ui.media.MediaRequestData
+import io.element.android.libraries.push.impl.notifications.factories.MARK_AS_READ_ACTION_TITLE
+import io.element.android.libraries.push.impl.notifications.factories.QUICK_REPLY_ACTION_TITLE
 import io.element.android.libraries.push.impl.notifications.factories.createNotificationCreator
 import io.element.android.libraries.push.impl.notifications.fixtures.aNotifiableMessageEvent
 import io.element.android.libraries.push.test.notifications.FakeImageLoader
@@ -36,7 +32,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
-private const val A_TIMESTAMP = 6480L
 private const val A_ROOM_AVATAR = "mxc://roomAvatar"
 private const val A_USER_AVATAR_1 = "mxc://userAvatar1"
 private const val A_USER_AVATAR_2 = "mxc://userAvatar2"
@@ -93,7 +88,7 @@ class DefaultRoomGroupMessageCreatorTest {
             expectedCoilRequests = listOf(
                 MediaRequestData(
                     source = MediaSource(url = A_ROOM_AVATAR),
-                    kind = MediaRequestData.Kind.Thumbnail(1024)
+                    kind = MediaRequestData.Kind.Thumbnail(AVATAR_THUMBNAIL_SIZE_IN_PIXEL)
                 )
             )
         )
@@ -107,15 +102,15 @@ class DefaultRoomGroupMessageCreatorTest {
             expectedCoilRequests = listOf(
                 MediaRequestData(
                     source = MediaSource(url = A_USER_AVATAR_1),
-                    kind = MediaRequestData.Kind.Thumbnail(1024)
+                    kind = MediaRequestData.Kind.Thumbnail(AVATAR_THUMBNAIL_SIZE_IN_PIXEL)
                 ),
                 MediaRequestData(
                     source = MediaSource(url = A_USER_AVATAR_2),
-                    kind = MediaRequestData.Kind.Thumbnail(1024)
+                    kind = MediaRequestData.Kind.Thumbnail(AVATAR_THUMBNAIL_SIZE_IN_PIXEL)
                 ),
                 MediaRequestData(
                     source = MediaSource(url = A_ROOM_AVATAR),
-                    kind = MediaRequestData.Kind.Thumbnail(1024)
+                    kind = MediaRequestData.Kind.Thumbnail(AVATAR_THUMBNAIL_SIZE_IN_PIXEL)
                 ),
             )
         )
@@ -164,6 +159,13 @@ class DefaultRoomGroupMessageCreatorTest {
         )
         assertThat(result.number).isEqualTo(2)
         assertThat(result.`when`).isEqualTo(A_TIMESTAMP + 10)
+        val actionTitles = result.actions?.map { it.title }
+        assertThat(actionTitles).isEqualTo(
+            listOfNotNull(
+                MARK_AS_READ_ACTION_TITLE.takeIf { NotificationConfig.SHOW_MARK_AS_READ_ACTION },
+                QUICK_REPLY_ACTION_TITLE.takeIf { NotificationConfig.SHOW_QUICK_REPLY_ACTION },
+            )
+        )
         assertThat(fakeImageLoader.getCoilRequests().size).isEqualTo(0)
     }
 
@@ -183,7 +185,12 @@ class DefaultRoomGroupMessageCreatorTest {
             imageLoader = fakeImageLoader.getImageLoader(),
             existingNotification = null,
         )
-        assertThat(result.actions).isNull()
+        val actionTitles = result.actions?.map { it.title }
+        assertThat(actionTitles).isEqualTo(
+            listOfNotNull(
+                MARK_AS_READ_ACTION_TITLE.takeIf { NotificationConfig.SHOW_MARK_AS_READ_ACTION }
+            )
+        )
         assertThat(fakeImageLoader.getCoilRequests().size).isEqualTo(0)
     }
 

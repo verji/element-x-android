@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomdetails.impl.rolesandpermissions.changeroles
@@ -38,7 +29,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -219,7 +209,7 @@ fun ChangeRolesView(
             is AsyncAction.Failure -> {
                 ErrorDialog(
                     content = stringResource(CommonStrings.error_unknown),
-                    onDismiss = { state.eventSink(ChangeRolesEvent.ClearError) }
+                    onSubmit = { state.eventSink(ChangeRolesEvent.ClearError) }
                 )
             }
             is AsyncAction.Success -> {
@@ -365,7 +355,7 @@ private fun MemberRow(
                     text = name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = ElementTheme.colors.textPrimary,
                     style = ElementTheme.typography.fontBodyLgRegular,
                 )
                 // Invitation pending marker
@@ -374,7 +364,7 @@ private fun MemberRow(
                         modifier = Modifier.padding(start = 8.dp),
                         text = stringResource(id = R.string.screen_room_member_list_pending_header_title),
                         style = ElementTheme.typography.fontBodySmRegular.copy(fontStyle = FontStyle.Italic),
-                        color = MaterialTheme.colorScheme.secondary
+                        color = ElementTheme.colors.textSecondary
                     )
                 }
             }
@@ -382,7 +372,7 @@ private fun MemberRow(
             userId?.let {
                 Text(
                     text = userId,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = ElementTheme.colors.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = ElementTheme.typography.fontBodySmRegular,

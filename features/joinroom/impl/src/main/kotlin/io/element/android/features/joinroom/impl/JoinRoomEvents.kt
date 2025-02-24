@@ -1,26 +1,21 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.joinroom.impl
 
 sealed interface JoinRoomEvents {
     data object RetryFetchingContent : JoinRoomEvents
+    data object DismissErrorAndHideContent : JoinRoomEvents
     data object JoinRoom : JoinRoomEvents
     data object KnockRoom : JoinRoomEvents
-    data object ClearError : JoinRoomEvents
+    data object ForgetRoom : JoinRoomEvents
+    data class CancelKnock(val requiresConfirmation: Boolean) : JoinRoomEvents
+    data class UpdateKnockMessage(val message: String) : JoinRoomEvents
+    data object ClearActionStates : JoinRoomEvents
     data object AcceptInvite : JoinRoomEvents
     data object DeclineInvite : JoinRoomEvents
 }

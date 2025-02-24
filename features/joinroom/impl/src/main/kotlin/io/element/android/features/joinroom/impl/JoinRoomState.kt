@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.joinroom.impl
@@ -27,30 +18,53 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.room.RoomType
 import io.element.android.libraries.matrix.ui.model.InviteSender
 
+internal const val MAX_KNOCK_MESSAGE_LENGTH = 500
+
 @Immutable
 data class JoinRoomState(
+    val roomIdOrAlias: RoomIdOrAlias,
     val contentState: ContentState,
     val acceptDeclineInviteState: AcceptDeclineInviteState,
     val joinAction: AsyncAction<Unit>,
     val knockAction: AsyncAction<Unit>,
-    val applicationName: String,
+    val forgetAction: AsyncAction<Unit>,
+    val cancelKnockAction: AsyncAction<Unit>,
+    private val applicationName: String,
+    val knockMessage: String,
     val eventSink: (JoinRoomEvents) -> Unit
 ) {
+    val isJoinActionUnauthorized = joinAction is AsyncAction.Failure && joinAction.error is JoinRoomFailures.UnauthorizedJoin
     val joinAuthorisationStatus = when (contentState) {
-        // Use the join authorisation status from the loaded content state
-        is ContentState.Loaded -> contentState.joinAuthorisationStatus
-        // Assume that if the room is unknown, the user can join it
-        is ContentState.UnknownRoom -> JoinAuthorisationStatus.CanJoin
-        // Otherwise assume that the user can't join the room
-        else -> JoinAuthorisationStatus.Unknown
+        is ContentState.Loaded -> {
+            when {
+                contentState.roomType == RoomType.Space -> {
+                    JoinAuthorisationStatus.IsSpace(applicationName)
+                }
+                isJoinActionUnauthorized -> {
+                    JoinAuthorisationStatus.Unauthorized
+                }
+                else -> {
+                    contentState.joinAuthorisationStatus
+                }
+            }
+        }
+        is ContentState.UnknownRoom -> {
+            if (isJoinActionUnauthorized) {
+                JoinAuthorisationStatus.Unauthorized
+            } else {
+                JoinAuthorisationStatus.Unknown
+            }
+        }
+        else -> JoinAuthorisationStatus.None
     }
 }
 
 @Immutable
 sealed interface ContentState {
-    data class Loading(val roomIdOrAlias: RoomIdOrAlias) : ContentState
-    data class Failure(val roomIdOrAlias: RoomIdOrAlias, val error: Throwable) : ContentState
-    data class UnknownRoom(val roomIdOrAlias: RoomIdOrAlias) : ContentState
+    data object Dismissing : ContentState
+    data object Loading : ContentState
+    data class Failure(val error: Throwable) : ContentState
+    data object UnknownRoom : ContentState
     data class Loaded(
         val roomId: RoomId,
         val name: String?,
@@ -76,8 +90,19 @@ sealed interface ContentState {
 }
 
 sealed interface JoinAuthorisationStatus {
+    data object None : JoinAuthorisationStatus
+    data class IsSpace(val applicationName: String) : JoinAuthorisationStatus
     data class IsInvited(val inviteSender: InviteSender?) : JoinAuthorisationStatus
+    data class IsBanned(val banSender: InviteSender?, val reason: String?) : JoinAuthorisationStatus
+    data object IsKnocked : JoinAuthorisationStatus
     data object CanKnock : JoinAuthorisationStatus
     data object CanJoin : JoinAuthorisationStatus
+    data object NeedInvite : JoinAuthorisationStatus
+    data object Restricted : JoinAuthorisationStatus
     data object Unknown : JoinAuthorisationStatus
+    data object Unauthorized : JoinAuthorisationStatus
+}
+
+sealed class JoinRoomFailures : Exception() {
+    data object UnauthorizedJoin : JoinRoomFailures()
 }

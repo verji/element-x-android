@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.roomselect.impl
@@ -56,8 +47,8 @@ import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.theme.components.TextButton
 import io.element.android.libraries.designsystem.theme.components.TopAppBar
 import io.element.android.libraries.matrix.api.core.RoomId
-import io.element.android.libraries.matrix.api.roomlist.RoomSummary
 import io.element.android.libraries.matrix.ui.components.SelectedRoom
+import io.element.android.libraries.matrix.ui.model.SelectRoomInfo
 import io.element.android.libraries.matrix.ui.model.getAvatarData
 import io.element.android.libraries.roomselect.api.RoomSelectMode
 import io.element.android.libraries.ui.strings.CommonStrings
@@ -74,13 +65,13 @@ fun RoomSelectView(
     modifier: Modifier = Modifier,
 ) {
     @Suppress("UNUSED_PARAMETER")
-    fun onRoomRemoved(roomSummary: RoomSummary) {
+    fun onRoomRemoved(roomInfo: SelectRoomInfo) {
         // TODO toggle selection when multi-selection is enabled
         state.eventSink(RoomSelectEvents.RemoveSelectedRoom)
     }
 
     @Composable
-    fun SelectedRoomsHelper(isForwarding: Boolean, selectedRooms: ImmutableList<RoomSummary>) {
+    fun SelectedRoomsHelper(isForwarding: Boolean, selectedRooms: ImmutableList<SelectRoomInfo>) {
         if (isForwarding) return
         SelectedRooms(
             selectedRooms = selectedRooms,
@@ -194,8 +185,8 @@ fun RoomSelectView(
 
 @Composable
 private fun SelectedRooms(
-    selectedRooms: ImmutableList<RoomSummary>,
-    onRemoveRoom: (RoomSummary) -> Unit,
+    selectedRooms: ImmutableList<SelectRoomInfo>,
+    onRemoveRoom: (SelectRoomInfo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
@@ -203,29 +194,29 @@ private fun SelectedRooms(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(32.dp)
     ) {
-        items(selectedRooms, key = { it.roomId.value }) { roomSummary ->
-            SelectedRoom(roomSummary = roomSummary, onRemoveRoom = onRemoveRoom)
+        items(selectedRooms, key = { it.roomId.value }) { selectRoomInfo ->
+            SelectedRoom(roomInfo = selectRoomInfo, onRemoveRoom = onRemoveRoom)
         }
     }
 }
 
 @Composable
 private fun RoomSummaryView(
-    summary: RoomSummary,
+    roomInfo: SelectRoomInfo,
     isSelected: Boolean,
-    onSelection: (RoomSummary) -> Unit,
+    onSelection: (SelectRoomInfo) -> Unit,
 ) {
     Row(
         modifier = Modifier
-            .clickable { onSelection(summary) }
+            .clickable { onSelection(roomInfo) }
             .fillMaxWidth()
             .padding(start = 16.dp, end = 4.dp)
             .heightIn(56.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CompositeAvatar(
-            avatarData = summary.getAvatarData(size = AvatarSize.RoomSelectRoomListItem),
-            heroes = summary.heroes.map { user ->
+            avatarData = roomInfo.getAvatarData(size = AvatarSize.RoomSelectRoomListItem),
+            heroes = roomInfo.heroes.map { user ->
                 user.getAvatarData(size = AvatarSize.RoomSelectRoomListItem)
             }.toPersistentList()
         )
@@ -237,14 +228,14 @@ private fun RoomSummaryView(
             // Name
             Text(
                 style = ElementTheme.typography.fontBodyLgRegular,
-                text = summary.name ?: stringResource(id = CommonStrings.common_no_room_name),
-                fontStyle = FontStyle.Italic.takeIf { summary.name == null },
+                text = roomInfo.name ?: stringResource(id = CommonStrings.common_no_room_name),
+                fontStyle = FontStyle.Italic.takeIf { roomInfo.name == null },
                 color = ElementTheme.colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             // Alias
-            summary.canonicalAlias?.let { alias ->
+            roomInfo.canonicalAlias?.let { alias ->
                 Text(
                     text = alias.value,
                     color = ElementTheme.colors.textSecondary,
@@ -254,7 +245,7 @@ private fun RoomSummaryView(
                 )
             }
         }
-        RadioButton(selected = isSelected, onClick = { onSelection(summary) })
+        RadioButton(selected = isSelected, onClick = { onSelection(roomInfo) })
     }
 }
 

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 package io.element.android.features.call.impl.notifications
 
@@ -72,6 +63,7 @@ class RingingCallNotificationCreator @Inject constructor(
         roomAvatarUrl: String?,
         notificationChannelId: String,
         timestamp: Long,
+        textContent: String?,
     ): Notification? {
         val matrixClient = matrixClientProvider.getOrRestore(sessionId).getOrNull() ?: return null
         val imageLoader = imageLoaderHolder.get(matrixClient)
@@ -93,7 +85,8 @@ class RingingCallNotificationCreator @Inject constructor(
             senderName = senderDisplayName,
             avatarUrl = roomAvatarUrl,
             notificationChannelId = notificationChannelId,
-            timestamp = timestamp
+            timestamp = timestamp,
+            textContent = textContent,
         )
 
         val declineIntent = PendingIntentCompat.getBroadcast(
@@ -129,6 +122,10 @@ class RingingCallNotificationCreator @Inject constructor(
             .setOngoing(true)
             .setShowWhen(false)
             .apply {
+                if (textContent != null) {
+                    setContentText(textContent)
+                    // Else the content text is set by the style (will be "Incoming call")
+                }
                 if (ringtoneUri != null) {
                     setSound(ringtoneUri, AudioManager.STREAM_RING)
                 }

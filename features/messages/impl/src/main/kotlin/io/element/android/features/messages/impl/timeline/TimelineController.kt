@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.timeline
@@ -20,6 +11,7 @@ import com.squareup.anvil.annotations.ContributesBinding
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.di.SingleIn
 import io.element.android.libraries.matrix.api.core.EventId
+import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.MatrixRoom
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.Timeline
@@ -66,14 +58,14 @@ class TimelineController @Inject constructor(
         return detachedTimeline.map { !it.isPresent }
     }
 
-    suspend fun invokeOnCurrentTimeline(block: suspend (Timeline.() -> Any)) {
+    suspend fun invokeOnCurrentTimeline(block: suspend (Timeline.() -> Unit)) {
         currentTimelineFlow.value.run {
             block(this)
         }
     }
 
     suspend fun focusOnEvent(eventId: EventId): Result<Unit> {
-        return room.timelineFocusedOnEvent(eventId)
+        return room.createTimeline(CreateTimelineParams.Focused(eventId))
             .onFailure {
                 if (it is CancellationException) {
                     throw it

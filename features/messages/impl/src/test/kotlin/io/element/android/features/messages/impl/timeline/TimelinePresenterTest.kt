@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.messages.impl.timeline
@@ -22,12 +13,13 @@ import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.FakeMessagesNavigator
+import io.element.android.features.messages.impl.crypto.sendfailure.resolve.aResolveVerifiedUserSendFailureState
 import io.element.android.features.messages.impl.fixtures.aMessageEvent
-import io.element.android.features.messages.impl.fixtures.aTimelineItemsFactory
+import io.element.android.features.messages.impl.fixtures.aTimelineItemsFactoryCreator
 import io.element.android.features.messages.impl.timeline.components.aCriticalShield
-import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactory
 import io.element.android.features.messages.impl.timeline.model.NewEventState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.typing.aTypingNotificationState
 import io.element.android.features.messages.impl.voicemessages.timeline.FakeRedactedVoiceMessageManager
 import io.element.android.features.messages.impl.voicemessages.timeline.RedactedVoiceMessageManager
 import io.element.android.features.messages.impl.voicemessages.timeline.aRedactedMatrixTimeline
@@ -35,6 +27,7 @@ import io.element.android.features.poll.api.actions.EndPollAction
 import io.element.android.features.poll.api.actions.SendPollResponseAction
 import io.element.android.features.poll.test.actions.FakeEndPollAction
 import io.element.android.features.poll.test.actions.FakeSendPollResponseAction
+import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.room.MatrixRoomMembersState
@@ -438,7 +431,10 @@ import kotlin.time.Duration.Companion.seconds
 
     @Test
     fun `present - PollEditClicked event navigates`() = runTest {
-        val navigator = FakeMessagesNavigator()
+        val onEditPollClickLambda = lambdaRecorder { _: EventId -> }
+        val navigator = FakeMessagesNavigator(
+            onEditPollClickLambda = onEditPollClickLambda
+        )
         val presenter = createTimelinePresenter(
             messagesNavigator = navigator,
         )
@@ -446,7 +442,7 @@ import kotlin.time.Duration.Companion.seconds
             presenter.present()
         }.test {
             awaitFirstItem().eventSink(TimelineEvents.EditPoll(AN_EVENT_ID))
-            assertThat(navigator.onEditPollClickedCount).isEqualTo(1)
+            onEditPollClickLambda.assertions().isCalledOnce().with(value(AN_EVENT_ID))
         }
     }
 
@@ -487,7 +483,7 @@ import kotlin.time.Duration.Companion.seconds
         )
         val room = FakeMatrixRoom(
             liveTimeline = liveTimeline,
-            timelineFocusedOnEventResult = { Result.success(detachedTimeline) },
+            createTimelineResult = { Result.success(detachedTimeline) },
             canUserSendMessageResult = { _, _ -> Result.success(true) },
         )
         val presenter = createTimelinePresenter(
@@ -512,7 +508,7 @@ import kotlin.time.Duration.Companion.seconds
                 assertThat(state.timelineItems).isNotEmpty()
             }
             initialState.eventSink.invoke(TimelineEvents.JumpToLive)
-            skipItems(1)
+            skipItems(2)
             awaitItem().also { state ->
                 // Event stays focused
                 assertThat(state.focusedEventId).isEqualTo(AN_EVENT_ID)
@@ -565,7 +561,7 @@ import kotlin.time.Duration.Companion.seconds
                 liveTimeline = FakeTimeline(
                     timelineItems = flowOf(emptyList()),
                 ),
-                timelineFocusedOnEventResult = { Result.failure(Throwable("An error")) },
+                createTimelineResult = { Result.failure(Throwable("An error")) },
                 canUserSendMessageResult = { _, _ -> Result.success(true) },
             )
         )
@@ -671,7 +667,6 @@ import kotlin.time.Duration.Companion.seconds
             liveTimeline = timeline,
             canUserSendMessageResult = { _, _ -> Result.success(true) }
         ),
-        timelineItemsFactory: TimelineItemsFactory = aTimelineItemsFactory(),
         redactedVoiceMessageManager: RedactedVoiceMessageManager = FakeRedactedVoiceMessageManager(),
         messagesNavigator: FakeMessagesNavigator = FakeMessagesNavigator(),
         endPollAction: EndPollAction = FakeEndPollAction(),
@@ -680,7 +675,7 @@ import kotlin.time.Duration.Companion.seconds
         timelineItemIndexer: TimelineItemIndexer = TimelineItemIndexer(),
     ): TimelinePresenter {
         return TimelinePresenter(
-            timelineItemsFactory = timelineItemsFactory,
+            timelineItemsFactoryCreator = aTimelineItemsFactoryCreator(),
             room = room,
             dispatchers = testCoroutineDispatchers(),
             appScope = this,
@@ -691,6 +686,9 @@ import kotlin.time.Duration.Companion.seconds
             sessionPreferencesStore = sessionPreferencesStore,
             timelineItemIndexer = timelineItemIndexer,
             timelineController = TimelineController(room),
+            resolveVerifiedUserSendFailurePresenter = { aResolveVerifiedUserSendFailureState() },
+            typingNotificationPresenter = { aTypingNotificationState() },
+            roomCallStatePresenter = { aStandByCallState() },
         )
     }
 }

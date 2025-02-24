@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.ui.media
@@ -29,10 +20,8 @@ import okio.Buffer
 import okio.Path.Companion.toOkioPath
 import timber.log.Timber
 import java.nio.ByteBuffer
-import kotlin.math.roundToLong
 
 internal class CoilMediaFetcher(
-    private val scalingFunction: (Float) -> Float,
     private val mediaLoader: MatrixMediaLoader,
     private val mediaData: MediaRequestData,
     private val options: Options
@@ -55,7 +44,7 @@ internal class CoilMediaFetcher(
      *
      */
     private suspend fun fetchFile(mediaSource: MediaSource, kind: MediaRequestData.Kind.File): FetchResult? {
-        return mediaLoader.downloadMediaFile(mediaSource, kind.mimeType, kind.body)
+        return mediaLoader.downloadMediaFile(mediaSource, kind.mimeType, kind.fileName)
             .map { mediaFile ->
                 val file = mediaFile.toFile()
                 SourceResult(
@@ -83,8 +72,8 @@ internal class CoilMediaFetcher(
     private suspend fun fetchThumbnail(mediaSource: MediaSource, kind: MediaRequestData.Kind.Thumbnail, options: Options): FetchResult? {
         return mediaLoader.loadMediaThumbnail(
             source = mediaSource,
-            width = scalingFunction(kind.width.toFloat()).roundToLong(),
-            height = scalingFunction(kind.height.toFloat()).roundToLong(),
+            width = kind.width,
+            height = kind.height,
         ).map { byteArray ->
             byteArray.asSourceResult(options)
         }.onFailure {

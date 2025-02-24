@@ -1,23 +1,15 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.tests.konsist
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.bumble.appyx.core.node.Node
+import com.google.common.truth.Truth.assertThat
 import com.lemonappdev.konsist.api.Konsist
 import com.lemonappdev.konsist.api.ext.list.withAllParentsOf
 import com.lemonappdev.konsist.api.ext.list.withAnnotationNamed
@@ -53,37 +45,64 @@ class KonsistClassNameTest {
 
     @Test
     fun `Classes extending 'PreviewParameterProvider' name MUST end with 'Provider' and MUST contain provided class name`() {
-        Konsist.scopeFromProject()
+        Konsist.scopeFromProduction()
             .classes()
             .withAllParentsOf(PreviewParameterProvider::class)
-            .assertTrue {
+            .withoutName(
+                "AspectRatioProvider",
+                "OverlapRatioProvider",
+            )
+            .also {
+                // Check that classes are actually found
+                assertThat(it.size).isGreaterThan(100)
+            }
+            .assertTrue { klass ->
                 // Cannot find a better way to get the type of the generic
-                val providedType = it.text
+                val providedType = klass.text
+                    .substringAfter("PreviewParameterProvider<")
                     .substringBefore(">")
-                    .substringAfter("<")
                     // Get the substring before the first '<' to remove the generic type
                     .substringBefore("<")
                     .removeSuffix("?")
                     .replace(".", "")
-                it.name.endsWith("Provider") && (it.name.contains("IconList") || it.name.contains(providedType))
+                val name = klass.name
+                name.endsWith("Provider") &&
+                    name.endsWith("PreviewProvider").not() &&
+                    name.contains(providedType)
             }
     }
 
     @Test
     fun `Fake classes must be named using Fake and the interface it fakes`() {
+        var failingCases = 0
+        val failingCasesList = listOf(
+            "FakeWrongClassName",
+            "FakeWrongClassSubInterfaceName",
+        )
         Konsist.scopeFromProject()
             .classes()
             .withNameContaining("Fake")
             .withoutName(
                 "FakeFileSystem",
                 "FakeImageLoader",
-                "FakeRustRoom",
             )
             .assertTrue {
-                val interfaceName = it.name.replace("Fake", "")
-                it.name.startsWith("Fake") &&
-                    it.parents().any { parent -> parent.name.replace(".", "") == interfaceName }
+                val interfaceName = it.name
+                    .replace("FakeRust", "")
+                    .replace("Fake", "")
+                val result = (it.name.startsWith("Fake") || it.name.startsWith("FakeRust")) &&
+                    it.parents().any { parent ->
+                        val parentName = parent.name.replace(".", "")
+                        parentName == interfaceName
+                    }
+                if (!result && it.name in failingCasesList) {
+                    failingCases++
+                    true
+                } else {
+                    result
+                }
             }
+        assertThat(failingCases).isEqualTo(failingCasesList.size)
     }
 
     @Test
@@ -103,6 +122,7 @@ class KonsistClassNameTest {
             .withoutName(
                 "Factory",
                 "TimelineController",
+                "TimelineMediaGalleryDataSource",
             )
             .withoutNameStartingWith(
                 "Accompanist",
@@ -116,6 +136,7 @@ class KonsistClassNameTest {
                 "Enterprise",
                 "Fdroid",
                 "FileExtensionExtractor",
+                "LiveMediaTimeline",
                 "KeyStore",
                 "Matrix",
                 "Noop",

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.matrix.impl.roomlist
@@ -32,9 +23,8 @@ class RoomSummaryListProcessor(
     private val roomSummaries: MutableSharedFlow<List<RoomSummary>>,
     private val roomListService: RoomListServiceInterface,
     private val coroutineContext: CoroutineContext,
-    private val roomSummaryDetailsFactory: RoomSummaryDetailsFactory = RoomSummaryDetailsFactory(),
+    private val roomSummaryDetailsFactory: RoomSummaryFactory = RoomSummaryFactory(),
 ) {
-    private val roomSummariesByIdentifier = HashMap<String, RoomSummary>()
     private val mutex = Mutex()
 
     suspend fun postUpdate(updates: List<RoomListEntriesUpdate>) {
@@ -49,7 +39,7 @@ class RoomSummaryListProcessor(
     suspend fun rebuildRoomSummaries() {
         updateRoomSummaries {
             forEachIndexed { i, summary ->
-                val result = buildAndCacheRoomSummaryForIdentifier(summary.roomId.value)
+                val result = buildRoomSummaryForIdentifier(summary.roomId.value)
                 if (result != null) {
                     this[i] = result
                 }
@@ -106,23 +96,17 @@ class RoomSummaryListProcessor(
     }
 
     private suspend fun buildSummaryForRoomListEntry(entry: RoomListItem): RoomSummary {
-        return buildAndCacheRoomSummaryForRoomListItem(entry)
+        return buildRoomSummaryForRoomListItem(entry)
     }
 
-    private suspend fun buildAndCacheRoomSummaryForIdentifier(identifier: String): RoomSummary? {
-        val builtRoomSummary = roomListService.roomOrNull(identifier)?.use { roomListItem ->
-            buildAndCacheRoomSummaryForRoomListItem(roomListItem)
+    private suspend fun buildRoomSummaryForIdentifier(identifier: String): RoomSummary? {
+        return roomListService.roomOrNull(identifier)?.use { roomListItem ->
+            buildRoomSummaryForRoomListItem(roomListItem)
         }
-        if (builtRoomSummary == null) {
-            roomSummariesByIdentifier.remove(identifier)
-        }
-        return builtRoomSummary
     }
 
-    private suspend fun buildAndCacheRoomSummaryForRoomListItem(roomListItem: RoomListItem): RoomSummary {
-        val builtRoomSummary = roomSummaryDetailsFactory.create(roomListItem = roomListItem)
-        roomSummariesByIdentifier[builtRoomSummary.roomId.value] = builtRoomSummary
-        return builtRoomSummary
+    private suspend fun buildRoomSummaryForRoomListItem(roomListItem: RoomListItem): RoomSummary {
+        return roomSummaryDetailsFactory.create(roomListItem = roomListItem)
     }
 
     private suspend fun updateRoomSummaries(block: suspend MutableList<RoomSummary>.() -> Unit) = withContext(coroutineContext) {

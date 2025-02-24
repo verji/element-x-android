@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.designsystem.theme.components
@@ -26,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -128,6 +119,14 @@ fun TextButton(
 )
 
 @Composable
+fun InvisibleButton(
+    modifier: Modifier = Modifier,
+    size: ButtonSize = ButtonSize.Large,
+) {
+    Spacer(modifier = modifier.height(size.toMinHeight()))
+}
+
+@Composable
 private fun ButtonInternal(
     text: String,
     onClick: () -> Unit,
@@ -140,14 +139,7 @@ private fun ButtonInternal(
     showProgress: Boolean = false,
     leadingIcon: IconSource? = null,
 ) {
-    val minHeight = when (size) {
-        ButtonSize.Small -> 32.dp
-        ButtonSize.Medium,
-        ButtonSize.MediumLowPadding -> 40.dp
-        ButtonSize.Large,
-        ButtonSize.LargeLowPadding -> 48.dp
-    }
-
+    val minHeight = size.toMinHeight()
     val hasStartDrawable = showProgress || leadingIcon != null
 
     val contentPadding = when (size) {
@@ -209,14 +201,6 @@ private fun ButtonInternal(
         ButtonStyle.Text -> null
     }
 
-    val textStyle = when (size) {
-        ButtonSize.Small,
-        ButtonSize.Medium,
-        ButtonSize.MediumLowPadding -> MaterialTheme.typography.labelLarge
-        ButtonSize.Large,
-        ButtonSize.LargeLowPadding -> ElementTheme.typography.fontBodyLgMedium
-    }
-
     androidx.compose.material3.Button(
         onClick = {
             if (!showProgress) {
@@ -255,11 +239,19 @@ private fun ButtonInternal(
         }
         Text(
             text = text,
-            style = textStyle,
+            style = ElementTheme.typography.fontBodyLgMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+private fun ButtonSize.toMinHeight() = when (this) {
+    ButtonSize.Small -> 32.dp
+    ButtonSize.Medium,
+    ButtonSize.MediumLowPadding -> 40.dp
+    ButtonSize.Large,
+    ButtonSize.LargeLowPadding -> 48.dp
 }
 
 @Immutable
@@ -322,7 +314,7 @@ internal enum class ButtonStyle {
             contentColor = if (destructive) {
                 ElementTheme.colors.textCriticalPrimary
             } else {
-                if (LocalContentColor.current.isSpecified) LocalContentColor.current else ElementTheme.materialColors.primary
+                if (LocalContentColor.current.isSpecified) LocalContentColor.current else ElementTheme.colors.textPrimary
             },
             disabledContainerColor = Color.Transparent,
             disabledContentColor = getDisabledContentColor(destructive),

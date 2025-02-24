@@ -1,23 +1,15 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 @file:OptIn(ExperimentalCoroutinesApi::class)
 
 package io.element.android.libraries.pushproviders.unifiedpush
 
+import android.content.Intent
 import androidx.test.platform.app.InstrumentationRegistry
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
@@ -36,12 +28,23 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class VectorUnifiedPushMessagingReceiverTest {
+    @Test
+    fun `onReceive does the binding`() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val vectorUnifiedPushMessagingReceiver = createVectorUnifiedPushMessagingReceiver()
+        // The binding is not found in the test env.
+        assertThrows(IllegalStateException::class.java) {
+            vectorUnifiedPushMessagingReceiver.onReceive(context, Intent())
+        }
+    }
+
     @Test
     fun `onUnregistered does nothing`() = runTest {
         val context = InstrumentationRegistry.getInstrumentation().context
@@ -113,7 +116,10 @@ class VectorUnifiedPushMessagingReceiverTest {
         val vectorUnifiedPushMessagingReceiver = createVectorUnifiedPushMessagingReceiver(
             unifiedPushStore = unifiedPushStore,
             unifiedPushGatewayResolver = FakeUnifiedPushGatewayResolver(
-                getGatewayResult = { "aGateway" }
+                getGatewayResult = { UnifiedPushGatewayResolverResult.Success("aGateway") }
+            ),
+            unifiedPushGatewayUrlResolver = FakeUnifiedPushGatewayUrlResolver(
+                resolveResult = { _, _ -> "aGatewayUrl" }
             ),
             endpointRegistrationHandler = endpointRegistrationHandler,
             unifiedPushNewGatewayHandler = unifiedPushNewGatewayHandler,
@@ -130,7 +136,7 @@ class VectorUnifiedPushMessagingReceiverTest {
         }
         storePushGatewayResult.assertions()
             .isCalledOnce()
-            .with(value(A_SECRET), value("aGateway"))
+            .with(value(A_SECRET), value("aGatewayUrl"))
         storeUpEndpointResult.assertions()
             .isCalledOnce()
             .with(value(A_SECRET), value("anEndpoint"))
@@ -153,7 +159,10 @@ class VectorUnifiedPushMessagingReceiverTest {
         val vectorUnifiedPushMessagingReceiver = createVectorUnifiedPushMessagingReceiver(
             unifiedPushStore = unifiedPushStore,
             unifiedPushGatewayResolver = FakeUnifiedPushGatewayResolver(
-                getGatewayResult = { "aGateway" }
+                getGatewayResult = { UnifiedPushGatewayResolverResult.Success("aGateway") }
+            ),
+            unifiedPushGatewayUrlResolver = FakeUnifiedPushGatewayUrlResolver(
+                resolveResult = { _, _ -> "aGatewayUrl" }
             ),
             endpointRegistrationHandler = endpointRegistrationHandler,
             unifiedPushNewGatewayHandler = unifiedPushNewGatewayHandler,
@@ -170,7 +179,7 @@ class VectorUnifiedPushMessagingReceiverTest {
         }
         storePushGatewayResult.assertions()
             .isCalledOnce()
-            .with(value(A_SECRET), value("aGateway"))
+            .with(value(A_SECRET), value("aGatewayUrl"))
         storeUpEndpointResult.assertions()
             .isNeverCalled()
     }
@@ -179,6 +188,7 @@ class VectorUnifiedPushMessagingReceiverTest {
         pushHandler: PushHandler = FakePushHandler(),
         unifiedPushStore: UnifiedPushStore = FakeUnifiedPushStore(),
         unifiedPushGatewayResolver: UnifiedPushGatewayResolver = FakeUnifiedPushGatewayResolver(),
+        unifiedPushGatewayUrlResolver: UnifiedPushGatewayUrlResolver = FakeUnifiedPushGatewayUrlResolver(),
         unifiedPushNewGatewayHandler: UnifiedPushNewGatewayHandler = FakeUnifiedPushNewGatewayHandler(),
         endpointRegistrationHandler: EndpointRegistrationHandler = EndpointRegistrationHandler(),
     ): VectorUnifiedPushMessagingReceiver {
@@ -188,6 +198,7 @@ class VectorUnifiedPushMessagingReceiverTest {
             this.guardServiceStarter = NoopGuardServiceStarter()
             this.unifiedPushStore = unifiedPushStore
             this.unifiedPushGatewayResolver = unifiedPushGatewayResolver
+            this.unifiedPushGatewayUrlResolver = unifiedPushGatewayUrlResolver
             this.newGatewayHandler = unifiedPushNewGatewayHandler
             this.endpointRegistrationHandler = endpointRegistrationHandler
             this.coroutineScope = this@createVectorUnifiedPushMessagingReceiver

@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2023 New Vector Ltd
+ * Copyright 2023, 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.features.roomlist.impl.model
@@ -111,6 +102,15 @@ open class RoomListRoomSummaryProvider : PreviewParameterProvider<RoomListRoomSu
                         displayName = "Bob",
                     ),
                 ),
+                aRoomListRoomSummary(
+                    name = "A knocked room",
+                    displayType = RoomSummaryDisplayType.KNOCKED,
+                ),
+                aRoomListRoomSummary(
+                    name = "A knocked room with alias",
+                    canonicalAlias = RoomAlias("#knockable:matrix.org"),
+                    displayType = RoomSummaryDisplayType.KNOCKED,
+                )
             ),
         ).flatten()
 }
@@ -123,14 +123,15 @@ internal fun anInviteSender(
     userId = userId,
     displayName = displayName,
     avatarData = avatarData,
+    membershipChangeReason = null,
 )
 
 internal fun aRoomListRoomSummary(
     id: String = "!roomId:domain",
     name: String? = "Room name",
-    numberOfUnreadMessages: Int = 0,
-    numberOfUnreadMentions: Int = 0,
-    numberOfUnreadNotifications: Int = 0,
+    numberOfUnreadMessages: Long = 0,
+    numberOfUnreadMentions: Long = 0,
+    numberOfUnreadNotifications: Long = 0,
     isMarkedUnread: Boolean = false,
     lastMessage: String? = "Last message",
     timestamp: String? = lastMessage?.let { "88:88" },

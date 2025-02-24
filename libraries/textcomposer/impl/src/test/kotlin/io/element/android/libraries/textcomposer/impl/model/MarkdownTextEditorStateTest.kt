@@ -1,17 +1,8 @@
 /*
- * Copyright (c) 2024 New Vector Ltd
+ * Copyright 2024 New Vector Ltd.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+ * Please see LICENSE files in the repository root for full details.
  */
 
 package io.element.android.libraries.textcomposer.impl.model
@@ -25,16 +16,16 @@ import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.room.IntentionalMention
 import io.element.android.libraries.matrix.test.A_ROOM_ALIAS
+import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkBuilder
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkParser
 import io.element.android.libraries.matrix.test.room.aRoomMember
-import io.element.android.libraries.matrix.test.room.aRoomSummary
 import io.element.android.libraries.textcomposer.mentions.MentionSpan
 import io.element.android.libraries.textcomposer.mentions.MentionSpanProvider
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
-import io.element.android.libraries.textcomposer.model.MarkdownTextEditorState
 import io.element.android.libraries.textcomposer.model.Suggestion
 import io.element.android.libraries.textcomposer.model.SuggestionType
+import io.element.android.libraries.textcomposer.model.aMarkdownTextEditorState
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -42,8 +33,8 @@ import org.junit.runner.RunWith
 class MarkdownTextEditorStateTest {
     @Test
     fun `insertMention - room alias - getMentions return empty list`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
-        val suggestion = ResolvedSuggestion.Alias(A_ROOM_ALIAS, aRoomSummary(canonicalAlias = A_ROOM_ALIAS))
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
+        val suggestion = aRoomAliasSuggestion()
         val permalinkBuilder = FakePermalinkBuilder()
         val mentionSpanProvider = aMentionSpanProvider()
         state.insertSuggestion(suggestion, mentionSpanProvider, permalinkBuilder)
@@ -52,10 +43,10 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `insertSuggestion - room alias - with member but failed PermalinkBuilder result`() {
-        val state = MarkdownTextEditorState(initialText = "Hello #", initialFocus = true).apply {
+        val state = aMarkdownTextEditorState(initialText = "Hello #", initialFocus = true).apply {
             currentSuggestion = Suggestion(start = 6, end = 7, type = SuggestionType.Room, text = "")
         }
-        val suggestion = ResolvedSuggestion.Alias(A_ROOM_ALIAS, aRoomSummary(canonicalAlias = A_ROOM_ALIAS))
+        val suggestion = aRoomAliasSuggestion()
         val permalinkParser = FakePermalinkParser(result = { PermalinkData.RoomLink(A_ROOM_ALIAS.toRoomIdOrAlias()) })
         val permalinkBuilder = FakePermalinkBuilder(permalinkForRoomAliasLambda = { Result.failure(IllegalStateException("Failed")) })
         val mentionSpanProvider = aMentionSpanProvider(permalinkParser = permalinkParser)
@@ -64,10 +55,10 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `insertSuggestion - room alias`() {
-        val state = MarkdownTextEditorState(initialText = "Hello #", initialFocus = true).apply {
+        val state = aMarkdownTextEditorState(initialText = "Hello #", initialFocus = true).apply {
             currentSuggestion = Suggestion(start = 6, end = 7, type = SuggestionType.Room, text = "")
         }
-        val suggestion = ResolvedSuggestion.Alias(A_ROOM_ALIAS, aRoomSummary(canonicalAlias = A_ROOM_ALIAS))
+        val suggestion = aRoomAliasSuggestion()
         val permalinkParser = FakePermalinkParser(result = { PermalinkData.RoomLink(A_ROOM_ALIAS.toRoomIdOrAlias()) })
         val permalinkBuilder = FakePermalinkBuilder(permalinkForRoomAliasLambda = { Result.success("https://matrix.to/#/${A_ROOM_ALIAS.value}") })
         val mentionSpanProvider = aMentionSpanProvider(permalinkParser = permalinkParser)
@@ -76,7 +67,7 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `insertSuggestion - with no currentMentionSuggestion does nothing`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
         val member = aRoomMember()
         val mention = ResolvedSuggestion.Member(member)
         val permalinkBuilder = FakePermalinkBuilder()
@@ -89,7 +80,7 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `insertSuggestion - with member but failed PermalinkBuilder result`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true).apply {
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true).apply {
             currentSuggestion = Suggestion(start = 6, end = 7, type = SuggestionType.Mention, text = "")
         }
         val member = aRoomMember()
@@ -106,7 +97,7 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `insertSuggestion - with member`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true).apply {
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true).apply {
             currentSuggestion = Suggestion(start = 6, end = 7, type = SuggestionType.Mention, text = "")
         }
         val member = aRoomMember()
@@ -124,7 +115,7 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `insertSuggestion - with @room`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true).apply {
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true).apply {
             currentSuggestion = Suggestion(start = 6, end = 7, type = SuggestionType.Mention, text = "")
         }
         val mention = ResolvedSuggestion.AtRoom
@@ -142,7 +133,7 @@ class MarkdownTextEditorStateTest {
     @Test
     fun `getMessageMarkdown - when there are no MentionSpans returns the same text`() {
         val text = "No mentions here"
-        val state = MarkdownTextEditorState(initialText = text, initialFocus = true)
+        val state = aMarkdownTextEditorState(initialText = text, initialFocus = true)
 
         val markdown = state.getMessageMarkdown(FakePermalinkBuilder())
 
@@ -156,7 +147,7 @@ class MarkdownTextEditorStateTest {
             permalinkForUserLambda = { Result.success("https://matrix.to/#/$it") },
             permalinkForRoomAliasLambda = { Result.success("https://matrix.to/#/$it") },
         )
-        val state = MarkdownTextEditorState(initialText = text, initialFocus = true)
+        val state = aMarkdownTextEditorState(initialText = text, initialFocus = true)
         state.text.update(aMarkdownTextWithMentions(), needsDisplaying = false)
 
         val markdown = state.getMessageMarkdown(permalinkBuilder = permalinkBuilder)
@@ -169,14 +160,14 @@ class MarkdownTextEditorStateTest {
 
     @Test
     fun `getMentions - when there are no MentionSpans returns empty list of mentions`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
 
         assertThat(state.getMentions()).isEmpty()
     }
 
     @Test
     fun `getMentions - when there are MentionSpans returns a list of mentions`() {
-        val state = MarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
+        val state = aMarkdownTextEditorState(initialText = "Hello @", initialFocus = true)
         state.text.update(aMarkdownTextWithMentions(), needsDisplaying = false)
 
         val mentions = state.getMentions()
@@ -210,5 +201,14 @@ class MarkdownTextEditorStateTest {
                 append("#room:domain.org")
             }
         }
+    }
+
+    private fun aRoomAliasSuggestion(): ResolvedSuggestion.Alias {
+        return ResolvedSuggestion.Alias(
+            roomAlias = A_ROOM_ALIAS,
+            roomId = A_ROOM_ID,
+            roomName = null,
+            roomAvatarUrl = null
+        )
     }
 }
